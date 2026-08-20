@@ -1,0 +1,14 @@
+{
+  "name": "oasis",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Five-league football prediction platform — data pipeline, models, web app.",
+  "scripts": {
+    "d1:migrate:local": "wrangler d1 migrations apply oasis --local",
+    "d1:migrate:remote": "wrangler d1 migrations apply oasis --remote",
+    "d1:studio": "wrangler d1 execute oasis --local --command \"SELECT name FROM sqlite_master WHERE type='table';\""
+  },
+  "devDependencies": {
+    "wrangler": "^4.0.0"
+  }
+}

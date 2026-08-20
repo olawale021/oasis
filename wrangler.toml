@@ -1,0 +1,9 @@
+name = "oasis"
+compatibility_date = "2026-08-01"
+
+# Created via `wrangler r2 bucket create oasis-raw` — raw API-Football response
+# archive. Written to from Python via R2's S3-compatible API (boto3), not from
+# a Worker — there's no Worker/web app in this project yet (Phase 0/1 only).
+[[r2_buckets]]
+binding = "RAW"
+bucket_name = "oasis-raw"

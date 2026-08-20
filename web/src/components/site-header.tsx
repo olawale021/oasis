@@ -1,0 +1,65 @@
+"use client";
+
+import Link from "next/link";
+import { usePathname } from "next/navigation";
+import { GENERATED_AT, utcClock } from "@/lib/data";
+import { cn } from "@/lib/utils";
+
+const NAV_LINKS = [
+  { label: "Today", href: "/", match: (p: string) => p === "/" },
+  { label: "Leagues", href: "/league/EPL", match: (p: string) => p.startsWith("/league") },
+  { label: "Performance", href: "/performance", match: (p: string) => p.startsWith("/performance") },
+];
+
+export function SiteHeader() {
+  const pathname = usePathname();
+
+  return (
+    <header className="border-b border-[var(--oasis-border)] bg-[var(--oasis-surface)]">
+      <div className="flex w-full items-center gap-[26px] px-[22px] py-[14px]">
+        <Link href="/" className="flex items-center gap-[9px]">
+          <span
+            className="block h-[22px] w-[22px] rounded-[6px]"
+            style={{ background: "linear-gradient(140deg,#4d9cf6,#2fcf9a)" }}
+          />
+          <span className="font-sans text-[16px] font-extrabold leading-none tracking-[-0.01em]">
+            Oasis
+          </span>
+        </Link>
+
+        <nav className="hidden items-center gap-5 text-[13.5px] font-semibold sm:flex">
+          {NAV_LINKS.map((link) => (
+            <Link
+              key={link.href}
+              href={link.href}
+              className={cn(
+                "transition-colors",
+                link.match(pathname ?? "")
+                  ? "text-[var(--oasis-text)]"
+                  : "text-[var(--oasis-text-muted)] hover:text-[var(--oasis-text)]",
+              )}
+            >
+              {link.label}
+            </Link>
+          ))}
+          <span className="cursor-default text-[var(--oasis-text-muted)]">Method</span>
+          <span className="cursor-default text-[var(--oasis-text-muted)]">Pricing</span>
+        </nav>
+
+        <div className="ml-auto flex items-center gap-3">
+          <span className="hidden items-center gap-[6px] font-mono text-[11.5px] font-medium text-[var(--oasis-text-dim)] md:flex">
+            <span className="h-[6px] w-[6px] rounded-full bg-[var(--oasis-positive)]" />
+            data {utcClock(GENERATED_AT)} UTC
+          </span>
+          <button
+            type="button"
+            className="rounded-[7px] bg-[var(--oasis-home)] px-[13px] py-[7px] text-[12.5px] font-bold text-[var(--oasis-home-ink)]"
+          >
+            Get lifetime access
+          </button>
+          <span className="h-7 w-7 rounded-full border border-[var(--oasis-border-strong)] bg-[var(--oasis-border)]" />
+        </div>
+      </div>
+    </header>
+  );
+}

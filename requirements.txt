@@ -1,0 +1,6 @@
+# Everyday-run ingestion deps (Phase 0 coverage audit, and future ingestion
+# scripts). There is no heavy-analysis path yet — once model training exists
+# (Elo/backtest phase), add requirements-dev.txt for numpy/scikit-learn-class
+# deps only, following the wc project's split convention.
+requests
+python-dotenv

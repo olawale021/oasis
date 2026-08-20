@@ -1,0 +1,121 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-sans);
+  --font-mono: var(--font-mono);
+  --font-heading: var(--font-sans);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar: var(--sidebar);
+  --color-chart-5: var(--chart-5);
+  --color-chart-4: var(--chart-4);
+  --color-chart-3: var(--chart-3);
+  --color-chart-2: var(--chart-2);
+  --color-chart-1: var(--chart-1);
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+}
+
+:root {
+  /* Oasis brand tokens — production reference (flat "dark analyst" palette) */
+  --oasis-bg: #0f1218;
+  --oasis-bg-rail: #111520;
+  --oasis-surface: #12161d;
+  --oasis-surface-raised: #1c2431;
+  --oasis-border: #232a36;
+  --oasis-border-strong: #2e3646;
+  --oasis-border-row: #1b212b;
+  --oasis-hover-row: #151b26;
+  --oasis-text: #e9edf4;
+  --oasis-text-soft: #c3cbd8;
+  --oasis-text-muted: #8b95a6;
+  --oasis-text-dim: #6f7a8c;
+  --oasis-text-faint: #5b6474;
+  --oasis-home: #4d9cf6;
+  --oasis-home-tint: rgba(77, 156, 246, 0.15);
+  --oasis-home-ink: #08101c;
+  --oasis-draw: #4a5464;
+  --oasis-away: #e0863c;
+  --oasis-positive: #2fcf9a;
+  --oasis-positive-tint: rgba(47, 207, 154, 0.1);
+  --oasis-warn: #eaa96e;
+
+  --background: var(--oasis-bg);
+  --foreground: var(--oasis-text);
+  --card: var(--oasis-surface);
+  --card-foreground: var(--oasis-text);
+  --popover: var(--oasis-surface);
+  --popover-foreground: var(--oasis-text);
+  --primary: var(--oasis-home);
+  --primary-foreground: var(--oasis-home-ink);
+  --secondary: var(--oasis-surface-raised);
+  --secondary-foreground: var(--oasis-text);
+  --muted: var(--oasis-surface);
+  --muted-foreground: var(--oasis-text-muted);
+  --accent: var(--oasis-surface-raised);
+  --accent-foreground: var(--oasis-text);
+  --destructive: var(--oasis-away);
+  --border: var(--oasis-border);
+  --input: var(--oasis-border-strong);
+  --ring: var(--oasis-home);
+  --chart-1: var(--oasis-home);
+  --chart-2: var(--oasis-draw);
+  --chart-3: var(--oasis-away);
+  --chart-4: var(--oasis-positive);
+  --chart-5: var(--oasis-warn);
+  --radius: 0.625rem;
+  --sidebar: var(--oasis-bg-rail);
+  --sidebar-foreground: var(--oasis-text);
+  --sidebar-primary: var(--oasis-home);
+  --sidebar-primary-foreground: var(--oasis-home-ink);
+  --sidebar-accent: var(--oasis-surface-raised);
+  --sidebar-accent-foreground: var(--oasis-text);
+  --sidebar-border: var(--oasis-border);
+  --sidebar-ring: var(--oasis-home);
+}
+
+.dark {
+  --background: var(--oasis-bg);
+  --foreground: var(--oasis-text);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+  html {
+    @apply font-sans;
+  }
+}

@@ -1,0 +1,14 @@
+{
+	"$schema": "node_modules/wrangler/config-schema.json",
+	// Deploys the Oasis web app (Next.js, via @opennextjs/cloudflare) as its own
+	// Worker. This is separate from the repo-root wrangler.toml, which only
+	// configures the R2 raw-response archive used by the Python data pipeline.
+	"main": ".open-next/worker.js",
+	"name": "oasis-web",
+	"compatibility_date": "2026-08-01",
+	"compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
+	"assets": {
+		"directory": ".open-next/assets",
+		"binding": "ASSETS"
+	}
+}

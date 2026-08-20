@@ -1,0 +1,44 @@
+from datetime import datetime
+
+import db
+
+
+def is_neutral_round(round_text: str) -> bool:
+    """True only for a Championship play-off Final (played at a neutral venue,
+    historically Wembley). Play-off semi-finals are two-legged, played at each
+    club's own ground, so they're NOT neutral. Everything else in this dataset
+    (regular league fixtures) is never neutral. Documented Phase-1 simplification
+    -- low-stakes, ~1 match/season, feeder-league only."""
+    if not round_text:
+        return False
+    text = round_text.lower()
+    return "play-off" in text and "final" in text
+
+
+def _parse_kickoff(value: str) -> datetime:
+    return datetime.fromisoformat(value)
+
+
+def load_matches(conn, league_ids: list, seasons: list = None) -> list:
+    """Single source of truth for 'what counts as a played match' for every
+    downstream modeling script. Returns matches sorted by kickoff_utc ascending."""
+    rows = db.get_completed_fixtures(conn, league_ids, seasons)
+    matches = []
+    for row in rows:
+        if row["home_goals"] is None or row["away_goals"] is None:
+            continue
+        matches.append(
+            {
+                "fixture_id": row["fixture_id"],
+                "league_id": row["league_id"],
+                "season": row["season"],
+                "kickoff_utc": _parse_kickoff(row["kickoff_utc"]),
+                "home_team_id": row["home_team_id"],
+                "away_team_id": row["away_team_id"],
+                "home_goals": row["home_goals"],
+                "away_goals": row["away_goals"],
+                "neutral": is_neutral_round(row["round"]),
+            }
+        )
+    matches.sort(key=lambda m: m["kickoff_utc"])
+    return matches

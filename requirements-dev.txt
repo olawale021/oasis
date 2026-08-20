@@ -1,0 +1,8 @@
+# Offline model-training dependencies (src/outcome_train.py and
+# src/goals_train.py only). Everyday scripts (ingest_fixtures.py,
+# evaluate_report.py, and all *_model.py inference modules) are stdlib +
+# requests/python-dotenv only -- this mirrors the wc project's
+# requirements.txt / requirements-dev.txt split exactly.
+numpy
+scikit-learn
+lightgbm

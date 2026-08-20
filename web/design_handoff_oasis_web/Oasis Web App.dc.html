@@ -1,0 +1,389 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet data-dc-atomics><meta name="design_doc_mode" content="canvas"><link href="https://fonts.googleapis.com/css2?family=Architects+Daughter&family=IBM+Plex+Mono:wght@400;600&family=Manrope:wght@400;500;600;700;800&family=Instrument+Sans:wght@400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&family=Public+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet"><style>body{margin:0;background:#f0eee9;font-family:'Architects Daughter',system-ui,sans-serif}a{color:#2a78d6}a:hover{color:#1a5aa8}.dv-turn{padding:40px 44px 32px;border-bottom:1px solid rgba(0,0,0,.08);scroll-margin-top:16px}.dv-thd{display:flex;align-items:baseline;gap:10px;margin:0 0 20px}.dv-tid{font:600 10px ui-monospace,Menlo,monospace;padding:3px 7px;background:#1a1a1a;color:#fff;border-radius:4px;text-decoration:none}.dv-tname{font:600 13px/1.2 system-ui,sans-serif;color:#1a1a1a}.dv-opts{display:flex;flex-wrap:wrap;gap:28px;align-items:flex-start}.dv-opt{flex:none;display:flex;flex-direction:column;gap:9px;scroll-margin-top:16px}.dv-oid{font:600 10.5px ui-monospace,Menlo,monospace;padding:3px 7px;background:rgba(0,0,0,.08);color:#1a1a1a;border-radius:5px;text-decoration:none}.dv-olabel{display:flex;align-items:baseline;gap:8px;font:400 11px/1.3 system-ui,sans-serif;color:rgba(0,0,0,.55)}.dv-card{max-width:100%;background:#fff;border:1px solid rgba(0,0,0,.08);border-radius:8px;box-shadow:0 1px 3px rgba(0,0,0,.06);overflow:hidden}.dv-opt:target .dv-oid{background:#2a78d6;color:#fff}.dv-next{margin:22px 0 0;font:12px/1.5 system-ui,sans-serif;color:rgba(0,0,0,.5)}</style></helmet>
+
+<section class="dv-turn" id="t3">
+<div class="dv-thd"><a class="dv-tid" href="#t3">3</a><span class="dv-tname">Oasis — production reference: home fixture rail, editorial home, league page</span></div>
+<div class="dv-opts">
+
+<div class="dv-opt" id="3a">
+<div class="dv-olabel"><a class="dv-oid" href="#3a">3a</a>Home fixture rail from <a class="dv-oid" href="#1a">1a</a> — interactive: click a league, toggle the edge filter, click a row to expand</div>
+<div class="dv-card" style="width:1180px;background:#0f1218;color:#e9edf4;font-family:var(--ui);--ui:{{ uiFont }};border:1px solid #232a36">
+  <div style="display:flex;align-items:center;gap:26px;padding:14px 22px;border-bottom:1px solid #232a36;background:#12161d">
+    <div style="display:flex;align-items:center;gap:9px"><div style="width:22px;height:22px;border-radius:6px;background:linear-gradient(140deg,#4d9cf6,#2fcf9a)"></div><span style="font:800 16px/1 var(--ui);letter-spacing:-.01em">Oasis</span></div>
+    <div style="display:flex;gap:20px;font:600 13.5px var(--ui)"><span>Today</span><span style="color:#8b95a6">Leagues</span><span style="color:#8b95a6">Performance</span><span style="color:#8b95a6">Method</span><span style="color:#8b95a6">Pricing</span></div>
+    <div style="margin-left:auto;display:flex;align-items:center;gap:12px">
+      <span style="font:500 11.5px 'JetBrains Mono';color:#6f7a8c;display:flex;align-items:center;gap:6px"><span style="width:6px;height:6px;border-radius:50%;background:#2fcf9a"></span>data 04:12 UTC</span>
+      <span style="font:700 12.5px var(--ui);padding:7px 13px;border-radius:7px;background:#4d9cf6;color:#08101c">Get lifetime access</span>
+      <span style="width:28px;height:28px;border-radius:50%;background:#232a36;border:1px solid #2e3646"></span>
+    </div>
+  </div>
+
+  <div style="display:grid;grid-template-columns:212px 1fr 268px">
+    <div style="border-right:1px solid #232a36;padding:18px 16px;display:flex;flex-direction:column;gap:22px;background:#111520">
+      <div style="display:flex;flex-direction:column;gap:8px">
+        <div style="font:600 10px 'JetBrains Mono';letter-spacing:.1em;color:#6f7a8c">LEAGUES</div>
+        <sc-for list="{{ leagueList }}" as="lg" hint-placeholder-count="6">
+          <div onClick="{{ lg.onClick }}" style="display:flex;justify-content:space-between;align-items:center;padding:7px 9px;border-radius:7px;cursor:pointer;font:600 13px var(--ui);color:{{ lg.color }};background:{{ lg.bg }}" style-hover="background:#1a2130">
+            <span>{{ lg.label }}</span><span style="font:500 11px 'JetBrains Mono';color:#6f7a8c">{{ lg.count }}</span>
+          </div>
+        </sc-for>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:9px">
+        <div style="font:600 10px 'JetBrains Mono';letter-spacing:.1em;color:#6f7a8c">FILTERS</div>
+        <div onClick="{{ toggleEdge }}" style="cursor:pointer;font:600 12px var(--ui);padding:7px 10px;border-radius:7px;color:{{ edgeChipColor }};background:{{ edgeChipBg }};border:{{ edgeChipBorder }}">{{ edgeChipLabel }}</div>
+        <div style="font:600 12px var(--ui);padding:7px 10px;border-radius:7px;color:#8b95a6;border:1px solid #232a36">Lineups confirmed</div>
+        <div style="font:600 12px var(--ui);padding:7px 10px;border-radius:7px;color:#8b95a6;border:1px solid #232a36">High confidence</div>
+      </div>
+      <div style="border:1px solid #232a36;border-radius:9px;padding:11px;background:#12161d">
+        <div style="font:600 10px 'JetBrains Mono';letter-spacing:.1em;color:#6f7a8c">DATA FRESHNESS</div>
+        <div style="font:500 11.5px/1.6 'JetBrains Mono';color:#8b95a6;margin-top:4px">fixtures 04:12<br>injuries 16:05<br>odds 16:31</div>
+      </div>
+    </div>
+
+    <div style="padding:18px 20px;display:flex;flex-direction:column;gap:14px">
+      <div style="display:flex;align-items:baseline;gap:12px">
+        <span style="font:800 19px/1 var(--ui);letter-spacing:-.02em">Saturday 22 August</span>
+        <span style="font:500 11.5px 'JetBrains Mono';color:#8b95a6">{{ activeLeagueName }} · {{ matchCountLabel }}</span>
+        <span style="margin-left:auto;display:flex;gap:6px;font:600 11.5px var(--ui)">
+          <span style="padding:5px 10px;border-radius:6px;background:#1c2431;border:1px solid #2e3646">Today</span>
+          <span style="padding:5px 10px;border-radius:6px;color:#8b95a6;border:1px solid #232a36">Tomorrow</span>
+          <span style="padding:5px 10px;border-radius:6px;color:#8b95a6;border:1px solid #232a36">Week</span>
+        </span>
+      </div>
+
+      <div style="display:flex;padding:0 4px 9px;border-bottom:1px solid #232a36;font:600 10px 'JetBrains Mono';letter-spacing:.09em;color:#6f7a8c">
+        <span style="width:250px">MATCH</span><span style="flex:1">MODEL · HOME / DRAW / AWAY</span><span style="width:58px;text-align:right">SCORE</span><span style="width:62px;text-align:right">EDGE</span>
+      </div>
+
+      <sc-for list="{{ rows }}" as="m" hint-placeholder-count="5">
+        <div onClick="{{ m.toggle }}" style="border-bottom:1px solid #1b212b;cursor:pointer;background:{{ m.rowBg }}" style-hover="background:#151b26">
+          <div style="display:flex;align-items:center;padding:12px 4px">
+            <span style="width:250px;display:flex;flex-direction:column;gap:3px">
+              <span style="font:700 14.5px var(--ui);letter-spacing:-.01em">{{ m.home }} <span style="color:#5b6474;font-weight:500">v</span> {{ m.away }}</span>
+              <span style="font:500 10.5px 'JetBrains Mono';color:{{ m.stColor }}">{{ m.meta }}</span>
+            </span>
+            <span style="flex:1;display:flex;align-items:center;gap:10px;padding-right:14px">
+              <span style="flex:1;display:flex;height:9px;border-radius:5px;overflow:hidden;background:#1b212b">
+                <span style="width:{{ m.hw }}%;background:#4d9cf6"></span><span style="width:{{ m.dw }}%;background:#4a5464"></span><span style="width:{{ m.aw }}%;background:#e0863c"></span>
+              </span>
+              <span style="font:500 12px 'JetBrains Mono';width:86px">{{ m.probs }}</span>
+            </span>
+            <span style="width:58px;text-align:right;font:500 12.5px 'JetBrains Mono'">{{ m.score }}</span>
+            <span style="width:62px;text-align:right;font-family:'JetBrains Mono';font-size:12px;font-weight:{{ m.edgeWeight }};color:{{ m.edgeColor }}">{{ m.edgeStr }}</span>
+          </div>
+          <sc-if value="{{ m.isOpen }}" hint-placeholder-val="{{ false }}">
+            <div style="padding:0 4px 14px;display:grid;grid-template-columns:1.4fr 1fr;gap:16px">
+              <div style="border:1px solid #232a36;border-radius:9px;background:#12161d;padding:12px">
+                <div style="font:600 10px 'JetBrains Mono';letter-spacing:.1em;color:#6f7a8c">WHY THIS FORECAST</div>
+                <div style="font:500 12.5px/1.7 var(--ui);color:#c3cbd8;margin-top:6px">{{ m.why }}</div>
+              </div>
+              <div style="border:1px solid #232a36;border-radius:9px;background:#12161d;padding:12px;display:flex;flex-direction:column;gap:7px;font:500 11.5px 'JetBrains Mono'">
+                <div style="display:flex;justify-content:space-between;color:#6f7a8c;font-size:10px;letter-spacing:.06em"><span>MODEL</span><span>MARKET (NO VIG)</span></div>
+                <div style="display:flex;justify-content:space-between"><span>{{ m.probs }}</span><span style="color:#8b95a6">{{ m.market }}</span></div>
+                <div style="display:flex;justify-content:space-between;border-top:1px solid #232a36;padding-top:7px"><span style="color:#8b95a6">confidence</span><span>{{ m.conf }}</span></div>
+                <div style="display:flex;justify-content:space-between"><span style="color:#8b95a6">likely score</span><span>{{ m.score }}</span></div>
+                <div style="font:700 11.5px var(--ui);color:#4d9cf6;margin-top:2px">Open full match page →</div>
+              </div>
+            </div>
+          </sc-if>
+        </div>
+      </sc-for>
+
+      <sc-if value="{{ emptyBoard }}" hint-placeholder-val="{{ false }}">
+        <div style="border:1px dashed #2e3646;border-radius:9px;padding:22px;text-align:center;font:600 13px var(--ui);color:#8b95a6">No fixtures match these filters today.</div>
+      </sc-if>
+
+      <div style="border:1px solid #2e3646;border-radius:10px;background:linear-gradient(120deg,rgba(77,156,246,.1),rgba(47,207,154,.06));padding:15px 17px;display:flex;align-items:center;gap:16px">
+        <div style="flex:1"><div style="font:700 14.5px var(--ui)">Free tier shows 3 matches a day</div><div style="font:500 11.5px 'JetBrains Mono';color:#8b95a6;margin-top:3px">founding lifetime · 312 of 500 seats left</div></div>
+        <span style="font:700 12.5px var(--ui);padding:9px 15px;border-radius:7px;background:#4d9cf6;color:#08101c">Unlock everything</span>
+      </div>
+    </div>
+
+    <div style="border-left:1px solid #232a36;padding:18px 16px;display:flex;flex-direction:column;gap:14px;background:#111520">
+      <div style="border:1px solid #232a36;border-radius:10px;background:#12161d;padding:13px;display:flex;flex-direction:column;gap:9px">
+        <div style="font:600 10px 'JetBrains Mono';letter-spacing:.1em;color:#6f7a8c">LAST 30 DAYS</div>
+        <div style="display:flex;justify-content:space-between;font:500 12px 'JetBrains Mono'"><span style="color:#8b95a6">log loss</span><span>0.981</span></div>
+        <div style="display:flex;justify-content:space-between;font:500 12px 'JetBrains Mono'"><span style="color:#8b95a6">vs market</span><span>+0.006</span></div>
+        <div style="display:flex;justify-content:space-between;font:500 12px 'JetBrains Mono'"><span style="color:#8b95a6">calibration</span><span>0.021</span></div>
+        <div style="display:flex;align-items:flex-end;gap:3px;height:44px;margin-top:2px">
+          <span style="flex:1;height:38%;background:#243044;border-radius:2px"></span><span style="flex:1;height:52%;background:#2b3a52;border-radius:2px"></span><span style="flex:1;height:44%;background:#243044;border-radius:2px"></span><span style="flex:1;height:66%;background:#35496a;border-radius:2px"></span><span style="flex:1;height:58%;background:#2b3a52;border-radius:2px"></span><span style="flex:1;height:74%;background:#4d9cf6;border-radius:2px"></span>
+        </div>
+        <div style="font:700 11.5px var(--ui);color:#4d9cf6">See full record →</div>
+      </div>
+      <div style="border:1px solid #232a36;border-radius:10px;background:#12161d;padding:13px;display:flex;flex-direction:column;gap:8px">
+        <div style="font:600 10px 'JetBrains Mono';letter-spacing:.1em;color:#6f7a8c">TELEGRAM</div>
+        <div style="font:600 13px var(--ui)">Daily digest + lineup alerts</div>
+        <div style="font:500 11px 'JetBrains Mono';color:#6f7a8c">/today · /performance · /alerts</div>
+        <div style="font:700 12px var(--ui);padding:8px;border-radius:7px;border:1px solid #2e3646;text-align:center">Connect account</div>
+      </div>
+      <div style="font:500 10px/1.6 'JetBrains Mono';color:#5b6474">Probabilistic forecasts, not guarantees and not betting advice. 18+ · responsible use.</div>
+    </div>
+  </div>
+</div>
+</div>
+
+<div class="dv-opt" id="3b">
+<div class="dv-olabel"><a class="dv-oid" href="#3b">3b</a>Home editorial cards from <a class="dv-oid" href="#1c">1c</a> — follows the league filter in <a class="dv-oid" href="#3a">3a</a></div>
+<div class="dv-card" style="width:800px;background:#0f1218;color:#e9edf4;font-family:var(--ui);--ui:{{ uiFont }};border:1px solid #232a36">
+  <div style="display:flex;align-items:center;gap:22px;padding:14px 20px;border-bottom:1px solid #232a36;background:#12161d">
+    <div style="display:flex;align-items:center;gap:9px"><div style="width:20px;height:20px;border-radius:6px;background:linear-gradient(140deg,#4d9cf6,#2fcf9a)"></div><span style="font:800 15px/1 var(--ui)">Oasis</span></div>
+    <div style="display:flex;gap:18px;font:600 13px var(--ui)"><span>Today</span><span style="color:#8b95a6">Leagues</span><span style="color:#8b95a6">Record</span></div>
+    <span style="margin-left:auto;font:700 12px var(--ui);padding:6px 12px;border-radius:7px;border:1px solid #2e3646">Sign in</span>
+  </div>
+
+  <div style="padding:20px;display:flex;flex-direction:column;gap:16px">
+    <div style="display:flex;align-items:baseline;justify-content:space-between">
+      <span style="font:800 21px/1 var(--ui);letter-spacing:-.02em">Today's forecasts</span>
+      <span style="font:500 11.5px 'JetBrains Mono';color:#8b95a6">{{ activeLeagueName }} · {{ matchCountLabel }} · published 06:00</span>
+    </div>
+
+    <sc-if value="{{ hasFeatured }}" hint-placeholder-val="{{ true }}">
+      <div style="border:1px solid #2e3646;border-radius:12px;background:#12161d;padding:18px;display:flex;flex-direction:column;gap:14px">
+        <div style="display:flex;align-items:baseline;gap:12px">
+          <span style="font:800 18px/1 var(--ui);letter-spacing:-.02em">{{ featured.home }} <span style="color:#5b6474;font-weight:500">v</span> {{ featured.away }}</span>
+          <span style="font:500 11px 'JetBrains Mono';color:#8b95a6">{{ featured.meta }}</span>
+          <span style="margin-left:auto;font:700 11px 'JetBrains Mono';padding:4px 8px;border-radius:5px;background:rgba(47,207,154,.12);color:#2fcf9a">edge {{ featured.edgeStr }}</span>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:9px">
+          <div style="display:flex;align-items:center;gap:12px;font:500 12px 'JetBrains Mono'"><span style="width:96px;color:#8b95a6">{{ featured.home }}</span><span style="flex:1;height:11px;border-radius:6px;background:#1b212b"><span style="display:block;height:100%;border-radius:6px;background:#4d9cf6;width:{{ featured.hw }}%"></span></span><span style="width:44px;text-align:right">{{ featured.hw }}%</span></div>
+          <div style="display:flex;align-items:center;gap:12px;font:500 12px 'JetBrains Mono'"><span style="width:96px;color:#8b95a6">Draw</span><span style="flex:1;height:11px;border-radius:6px;background:#1b212b"><span style="display:block;height:100%;border-radius:6px;background:#4a5464;width:{{ featured.dw }}%"></span></span><span style="width:44px;text-align:right">{{ featured.dw }}%</span></div>
+          <div style="display:flex;align-items:center;gap:12px;font:500 12px 'JetBrains Mono'"><span style="width:96px;color:#8b95a6">{{ featured.away }}</span><span style="flex:1;height:11px;border-radius:6px;background:#1b212b"><span style="display:block;height:100%;border-radius:6px;background:#e0863c;width:{{ featured.aw }}%"></span></span><span style="width:44px;text-align:right">{{ featured.aw }}%</span></div>
+        </div>
+        <div style="display:flex;gap:8px;font:500 11px 'JetBrains Mono';color:#8b95a6">
+          <span style="padding:4px 9px;border-radius:6px;border:1px solid #232a36">likely {{ featured.score }}</span>
+          <span style="padding:4px 9px;border-radius:6px;border:1px solid #232a36">O2.5 54%</span>
+          <span style="padding:4px 9px;border-radius:6px;border:1px solid #232a36">BTTS 51%</span>
+          <span style="padding:4px 9px;border-radius:6px;border:1px solid #232a36">market {{ featured.market }}</span>
+        </div>
+        <div style="border-top:1px solid #232a36;padding-top:12px;font:500 13px/1.7 var(--ui);color:#c3cbd8">{{ featured.why }}</div>
+      </div>
+    </sc-if>
+
+    <sc-for list="{{ secondary }}" as="m" hint-placeholder-count="2">
+      <div onClick="{{ m.toggle }}" style="border:1px solid #232a36;border-radius:11px;background:#12161d;padding:15px;display:flex;align-items:center;gap:16px;cursor:pointer" style-hover="border-color:#2e3646">
+        <span style="flex:1;display:flex;flex-direction:column;gap:3px">
+          <span style="font:700 15px var(--ui);letter-spacing:-.01em">{{ m.home }} <span style="color:#5b6474;font-weight:500">v</span> {{ m.away }}</span>
+          <span style="font:500 10.5px 'JetBrains Mono';color:{{ m.stColor }}">{{ m.meta }}</span>
+        </span>
+        <span style="width:200px;display:flex;height:9px;border-radius:5px;overflow:hidden;background:#1b212b"><span style="width:{{ m.hw }}%;background:#4d9cf6"></span><span style="width:{{ m.dw }}%;background:#4a5464"></span><span style="width:{{ m.aw }}%;background:#e0863c"></span></span>
+        <span style="width:78px;text-align:right;font:500 12px 'JetBrains Mono'">{{ m.probs }}</span>
+        <span style="width:48px;text-align:right;font:500 12.5px 'JetBrains Mono'">{{ m.score }}</span>
+      </div>
+    </sc-for>
+
+    <div style="border:1px solid #2e3646;border-radius:11px;background:linear-gradient(120deg,rgba(77,156,246,.1),rgba(47,207,154,.06));padding:16px;display:flex;align-items:center;gap:16px">
+      <div style="flex:1"><div style="font:700 15px var(--ui)">Every match, five leagues, full explanations</div><div style="font:500 11.5px 'JetBrains Mono';color:#8b95a6;margin-top:3px">founding lifetime · $49 once · 312 seats left</div></div>
+      <span style="font:700 12.5px var(--ui);padding:9px 15px;border-radius:7px;background:#4d9cf6;color:#08101c">See pricing</span>
+    </div>
+
+    <div style="display:flex;gap:12px">
+      <div style="flex:1;border:1px solid #232a36;border-radius:10px;background:#12161d;padding:13px"><div style="font:600 10px 'JetBrains Mono';letter-spacing:.1em;color:#6f7a8c">30-DAY RECORD</div><div style="font:500 12.5px/1.7 'JetBrains Mono';color:#8b95a6;margin-top:4px">log loss 0.981<br>+0.006 vs closing odds</div></div>
+      <div style="flex:1;border:1px solid #232a36;border-radius:10px;background:#12161d;padding:13px"><div style="font:600 10px 'JetBrains Mono';letter-spacing:.1em;color:#6f7a8c">TELEGRAM</div><div style="font:500 12.5px/1.7 'JetBrains Mono';color:#8b95a6;margin-top:4px">daily digest<br>lineup-change alerts</div></div>
+    </div>
+    <div style="font:500 10px/1.6 'JetBrains Mono';color:#5b6474">Probabilistic forecasts, not guarantees and not betting advice. 18+ · responsible use.</div>
+  </div>
+</div>
+</div>
+
+<div class="dv-opt" id="3c">
+<div class="dv-olabel"><a class="dv-oid" href="#3c">3c</a>League page from <a class="dv-oid" href="#1e">1e</a> — interactive: switch leagues in the tab bar</div>
+<div class="dv-card" style="width:1180px;background:#0f1218;color:#e9edf4;font-family:var(--ui);--ui:{{ uiFont }};border:1px solid #232a36">
+  <div style="display:flex;align-items:center;gap:24px;padding:14px 22px;border-bottom:1px solid #232a36;background:#12161d">
+    <div style="display:flex;align-items:center;gap:9px"><div style="width:22px;height:22px;border-radius:6px;background:linear-gradient(140deg,#4d9cf6,#2fcf9a)"></div><span style="font:800 16px/1 var(--ui)">Oasis</span></div>
+    <div style="display:flex;gap:18px;font:600 13.5px var(--ui)">
+      <sc-for list="{{ tabs }}" as="t" hint-placeholder-count="5">
+        <span onClick="{{ t.onClick }}" style="cursor:pointer;padding-bottom:3px;color:{{ t.color }};border-bottom:{{ t.border }}">{{ t.label }}</span>
+      </sc-for>
+    </div>
+    <span style="margin-left:auto;font:500 11.5px 'JetBrains Mono';color:#8b95a6">season 2026/27</span>
+  </div>
+
+  <div style="display:flex;align-items:center;gap:9px;padding:11px 22px;border-bottom:1px solid #232a36">
+    <span style="font:600 12px var(--ui);padding:6px 11px;border-radius:6px;background:#1c2431;border:1px solid #2e3646">Matchweek 2</span>
+    <span style="font:600 12px var(--ui);padding:6px 11px;border-radius:6px;color:#8b95a6;border:1px solid #232a36">Team: any</span>
+    <span style="font:600 12px var(--ui);padding:6px 11px;border-radius:6px;color:#8b95a6;border:1px solid #232a36">Confidence: any</span>
+    <span style="margin-left:auto;font:500 11.5px 'JetBrains Mono';color:#6f7a8c">{{ tabName }} · model v2.4.1</span>
+  </div>
+
+  <div style="display:grid;grid-template-columns:1.3fr 1fr">
+    <div style="border-right:1px solid #232a36;padding:18px 20px;display:flex;flex-direction:column;gap:12px">
+      <div style="font:600 10px 'JetBrains Mono';letter-spacing:.1em;color:#6f7a8c">FIXTURES &amp; PREDICTIONS — {{ tabName }}</div>
+      <sc-for list="{{ leagueFixtures }}" as="m" hint-placeholder-count="3">
+        <div style="border:1px solid #232a36;border-radius:10px;background:#12161d;padding:13px;display:flex;align-items:center;gap:14px" style-hover="border-color:#2e3646">
+          <span style="width:236px;display:flex;flex-direction:column;gap:3px">
+            <span style="font:700 14px var(--ui);letter-spacing:-.01em">{{ m.home }} <span style="color:#5b6474;font-weight:500">v</span> {{ m.away }}</span>
+            <span style="font:500 10.5px 'JetBrains Mono';color:{{ m.stColor }}">{{ m.ko }} · {{ m.st }}</span>
+          </span>
+          <span style="flex:1;display:flex;height:9px;border-radius:5px;overflow:hidden;background:#1b212b"><span style="width:{{ m.hw }}%;background:#4d9cf6"></span><span style="width:{{ m.dw }}%;background:#4a5464"></span><span style="width:{{ m.aw }}%;background:#e0863c"></span></span>
+          <span style="width:80px;text-align:right;font:500 11.5px 'JetBrains Mono';color:#8b95a6">{{ m.probs }}</span>
+          <span style="width:42px;text-align:right;font:500 12.5px 'JetBrains Mono'">{{ m.score }}</span>
+        </div>
+      </sc-for>
+      <sc-if value="{{ leagueEmpty }}" hint-placeholder-val="{{ false }}">
+        <div style="border:1px dashed #2e3646;border-radius:10px;padding:20px;text-align:center;font:600 13px var(--ui);color:#8b95a6">No fixtures scheduled in this matchweek.</div>
+      </sc-if>
+      <div style="border:1px solid #232a36;border-radius:10px;background:#12161d;padding:14px;margin-top:4px">
+        <div style="font:600 10px 'JetBrains Mono';letter-spacing:.1em;color:#6f7a8c">MATCHWEEK 1 SETTLEMENT</div>
+        <div style="font:500 12px/1.8 'JetBrains Mono';color:#8b95a6;margin-top:5px">10 matches · 6 correct top pick · log loss 0.96 · Brier 0.19</div>
+        <div style="font:700 11.5px var(--ui);color:#4d9cf6;margin-top:4px">Open full ledger →</div>
+      </div>
+    </div>
+
+    <div style="padding:18px 20px;display:flex;flex-direction:column;gap:12px">
+      <div style="font:600 10px 'JetBrains Mono';letter-spacing:.1em;color:#6f7a8c">STANDINGS</div>
+      <div style="border:1px solid #232a36;border-radius:10px;background:#12161d;overflow:hidden">
+        <div style="display:flex;padding:9px 12px;border-bottom:1px solid #232a36;font:600 10px 'JetBrains Mono';letter-spacing:.07em;color:#6f7a8c"><span style="width:26px">#</span><span style="flex:1">TEAM</span><span style="width:28px;text-align:right">P</span><span style="width:38px;text-align:right">GD</span><span style="width:36px;text-align:right">PTS</span><span style="width:52px;text-align:right">ELO</span></div>
+        <sc-for list="{{ table }}" as="r" hint-placeholder-count="5">
+          <div style="display:flex;align-items:center;padding:10px 12px;font:500 12px 'JetBrains Mono';border-bottom:1px solid #1b212b;background:{{ r.bg }}">
+            <span style="width:26px;color:#6f7a8c">{{ r.pos }}</span><span style="flex:1;font:700 13px var(--ui)">{{ r.team }}</span><span style="width:28px;text-align:right;color:#8b95a6">{{ r.p }}</span><span style="width:38px;text-align:right;color:#8b95a6">{{ r.gd }}</span><span style="width:36px;text-align:right">{{ r.pts }}</span><span style="width:52px;text-align:right;color:#8b95a6">{{ r.elo }}</span>
+          </div>
+        </sc-for>
+      </div>
+      <div style="font:600 10px 'JetBrains Mono';letter-spacing:.1em;color:#6f7a8c;margin-top:4px">{{ tabName }} MODEL RECORD</div>
+      <div style="border:1px solid #232a36;border-radius:10px;background:#12161d;padding:14px;display:flex;gap:22px">
+        <div><div style="font:600 10px 'JetBrains Mono';letter-spacing:.09em;color:#6f7a8c">LOG LOSS</div><div style="font:500 21px 'JetBrains Mono'">{{ perf.ll }}</div></div>
+        <div><div style="font:600 10px 'JetBrains Mono';letter-spacing:.09em;color:#6f7a8c">vs BASELINE</div><div style="font:500 21px 'JetBrains Mono';color:#2fcf9a">{{ perf.base }}</div></div>
+        <div><div style="font:600 10px 'JetBrains Mono';letter-spacing:.09em;color:#6f7a8c">vs MARKET</div><div style="font:500 21px 'JetBrains Mono'">{{ perf.mkt }}</div></div>
+        <div style="flex:1;display:flex;align-items:flex-end;gap:3px;height:48px"><span style="flex:1;height:44%;background:#243044;border-radius:2px"></span><span style="flex:1;height:58%;background:#2b3a52;border-radius:2px"></span><span style="flex:1;height:50%;background:#243044;border-radius:2px"></span><span style="flex:1;height:70%;background:#35496a;border-radius:2px"></span><span style="flex:1;height:62%;background:#2b3a52;border-radius:2px"></span><span style="flex:1;height:80%;background:#4d9cf6;border-radius:2px"></span></div>
+      </div>
+      <div style="font:500 10px/1.6 'JetBrains Mono';color:#5b6474">Lower log loss is better; negative vs baseline means the model beats league frequency. Forecasts are probabilistic.</div>
+    </div>
+  </div>
+</div>
+</div>
+
+</div>
+<p class="dv-next">Try next: "make <a class="dv-oid" href="#3a">3a</a> the primary home" · "add pricing + account screens" · "light theme" · "mobile version of <a class="dv-oid" href="#3a">3a</a>"</p>
+</section>
+
+
+
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;uiFont&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;Instrument Sans&quot;,&quot;Manrope&quot;,&quot;Space Grotesk&quot;,&quot;Public Sans&quot;],&quot;default&quot;:&quot;Instrument Sans&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Typography&quot;}}">
+class Component extends DCLogic {
+  state = { league: 'ALL', edgeOnly: false, expanded: null, leagueTab: 'EPL', day: 'Today' };
+
+  matches = [
+    { id:1, lg:'EPL', home:'Arsenal', away:'Liverpool', ko:'17:30', h:47.2, d:25.8, a:27.0, mh:43.1, score:'2–1', conf:'HIGH', st:'lineups confirmed',
+      why:'Arsenal +38 Elo · Liverpool missing 2 starters · 3 days extra rest · head-to-head regularized (low weight)' },
+    { id:2, lg:'BUN', home:'Bayer Leverkusen', away:'RB Leipzig', ko:'18:30', h:41.0, d:22.0, a:37.0, mh:37.6, score:'2–2', conf:'MED', st:'provisional lineups',
+      why:'Both sides high-tempo · Leverkusen home goal rate 2.4 · Leipzig away form declining over last 5' },
+    { id:3, lg:'LAL', home:'Real Sociedad', away:'Villarreal', ko:'20:00', h:36.0, d:29.0, a:32.9, mh:32.9, score:'1–1', conf:'MED', st:'provisional lineups',
+      why:'Tight strength gap · La Liga draw rate elevated · Villarreal 4 days rest advantage' },
+    { id:4, lg:'SEA', home:'Atalanta', away:'Napoli', ko:'20:45', h:34.0, d:31.0, a:35.0, mh:32.6, score:'1–1', conf:'LOW', st:'provisional lineups',
+      why:'Serie A draw prior high · Napoli midweek fixture congestion · Atalanta shot volume above league mean' },
+    { id:5, lg:'MLS', home:'Inter Miami', away:'Columbus Crew', ko:'23:00', h:49.0, d:24.0, a:27.0, mh:46.0, score:'2–1', conf:'MED', st:'lineups confirmed',
+      why:'Travel + time-zone penalty on Columbus · Miami home goal rate 2.1 · expansion priors not applied' },
+    { id:6, lg:'EPL', home:'Manchester City', away:'Aston Villa', ko:'15:00', h:63.0, d:21.0, a:16.0, mh:61.4, score:'2–0', conf:'HIGH', st:'lineups confirmed',
+      why:'Largest Elo gap of the matchweek · City full squad · Villa conceding 1.6 per away match' },
+    { id:7, lg:'LAL', home:'Athletic Club', away:'Real Madrid', ko:'22:00', h:29.0, d:27.0, a:44.0, mh:27.9, score:'1–2', conf:'MED', st:'provisional lineups',
+      why:'San Mamés home advantage above league mean · Madrid squad depth · Athletic 2 defenders doubtful' }
+  ];
+
+  standings = {
+    EPL:[['Arsenal',2,'+4',6,1892],['Manchester City',2,'+3',4,1943],['Liverpool',2,'+1',4,1901],['Aston Villa',2,'0',3,1774],['Brighton',2,'−1',1,1721]],
+    LAL:[['Real Madrid',2,'+5',6,1955],['Barcelona',2,'+4',6,1938],['Atlético Madrid',2,'+2',4,1852],['Athletic Club',2,'0',3,1801],['Villarreal',2,'−1',1,1766]],
+    SEA:[['Inter',2,'+4',6,1888],['Napoli',2,'+3',4,1861],['Atalanta',2,'+2',4,1844],['Juventus',2,'0',3,1826],['Roma',2,'−2',1,1780]],
+    BUN:[['Bayern München',2,'+6',6,1961],['Bayer Leverkusen',2,'+3',4,1889],['RB Leipzig',2,'+1',4,1842],['VfB Stuttgart',2,'0',3,1799],['Eintracht Frankfurt',2,'−2',1,1748]],
+    MLS:[['Inter Miami',3,'+4',7,1712],['LAFC',3,'+3',6,1698],['Columbus Crew',3,'+2',6,1690],['Philadelphia Union',3,'0',4,1641],['Seattle Sounders',3,'−1',3,1633]]
+  };
+
+  perf = {
+    EPL:{ll:'0.97',base:'−0.08',mkt:'+0.01'}, LAL:{ll:'0.99',base:'−0.07',mkt:'+0.02'},
+    SEA:{ll:'1.00',base:'−0.05',mkt:'+0.02'}, BUN:{ll:'1.01',base:'−0.04',mkt:'+0.03'}, MLS:{ll:'1.05',base:'−0.02',mkt:'+0.05'}
+  };
+
+  names = { ALL:'All leagues', EPL:'Premier League', LAL:'La Liga', SEA:'Serie A', BUN:'Bundesliga', MLS:'MLS' };
+
+  row(m) {
+    const edge = +(m.h - m.mh).toFixed(1);
+    const hot = edge >= 3;
+    return Object.assign({}, m, {
+      leagueName: this.names[m.lg],
+      probs: Math.round(m.h) + '/' + Math.round(m.d) + '/' + Math.round(m.a),
+      market: Math.round(m.mh) + '/' + Math.round(m.d) + '/' + Math.round(100 - m.mh - m.d),
+      hw: m.h, dw: m.d, aw: m.a,
+      edgeStr: (edge > 0 ? '+' : '') + edge.toFixed(1) + '%',
+      edgeColor: hot ? '#2fcf9a' : '#6f7a8c',
+      edgeWeight: hot ? 700 : 500,
+      rowBg: hot ? 'linear-gradient(90deg,rgba(47,207,154,.07),transparent 55%)' : 'transparent',
+      confBg: m.conf === 'HIGH' ? 'rgba(77,156,246,.15)' : '#1c2431',
+      confColor: m.conf === 'HIGH' ? '#8fc2ff' : (m.conf === 'LOW' ? '#6f7a8c' : '#8b95a6'),
+      meta: this.names[m.lg] + ' · ' + m.ko + ' · ' + m.st,
+      stColor: m.st.indexOf('confirmed') > -1 ? '#2fcf9a' : '#8b95a6',
+      glassRowBg: hot ? 'linear-gradient(90deg,rgba(47,207,154,.16),rgba(255,255,255,.04) 60%)' : 'rgba(255,255,255,.045)',
+      isOpen: this.state.expanded === m.id,
+      toggle: () => this.setState(s => ({ expanded: s.expanded === m.id ? null : m.id }))
+    });
+  }
+
+  renderVals() {
+    const st = this.state;
+    const uiFont = "'" + (this.props.uiFont || 'Instrument Sans') + "',system-ui,sans-serif";
+    const codes = ['EPL','LAL','SEA','BUN','MLS'];
+    const rows = this.matches
+      .map(m => this.row(m))
+      .filter(m => (st.league === 'ALL' || m.lg === st.league) && (!st.edgeOnly || parseFloat(m.edgeStr) >= 3))
+      .sort((a, b) => parseFloat(b.edgeStr) - parseFloat(a.edgeStr));
+
+    const mk = (code, label) => ({
+      code, label, count: code === 'ALL' ? this.matches.length : this.matches.filter(m => m.lg === code).length,
+      active: st.league === code,
+      color: st.league === code ? '#e9edf4' : '#8b95a6',
+      bg: st.league === code ? '#1c2431' : 'transparent',
+      glassColor: st.league === code ? '#f2f6fc' : '#96a1b3',
+      glassBg: st.league === code ? 'rgba(255,255,255,.16)' : 'rgba(255,255,255,.03)',
+      glassBorder: st.league === code ? '1px solid rgba(255,255,255,.22)' : '1px solid rgba(255,255,255,.06)',
+      onClick: () => this.setState({ league: code, expanded: null })
+    });
+
+    const tabs = codes.map(c => ({
+      code: c, label: this.names[c],
+      color: st.leagueTab === c ? '#e9edf4' : '#8b95a6',
+      border: st.leagueTab === c ? '2px solid #4d9cf6' : '2px solid transparent',
+      onClick: () => this.setState({ leagueTab: c })
+    }));
+
+    const lt = st.leagueTab;
+    return {
+      uiFont,
+      leagueList: [mk('ALL','All leagues')].concat(codes.map(c => mk(c, this.names[c]))),
+      rows,
+      rowCount: rows.length,
+      matchCountLabel: rows.length + (rows.length === 1 ? ' match' : ' matches'),
+      emptyBoard: rows.length === 0,
+      activeLeagueName: this.names[st.league],
+      edgeOnly: st.edgeOnly,
+      edgeChipBg: st.edgeOnly ? 'rgba(47,207,154,.08)' : 'transparent',
+      edgeChipColor: st.edgeOnly ? '#2fcf9a' : '#8b95a6',
+      edgeChipBorder: st.edgeOnly ? '1px solid rgba(47,207,154,.35)' : '1px solid #232a36',
+      edgeChipLabel: st.edgeOnly ? 'Edge ≥ 3% ✓' : 'Edge ≥ 3%',
+      edgeGlassBg: st.edgeOnly ? 'rgba(47,207,154,.18)' : 'rgba(255,255,255,.03)',
+      edgeGlassColor: st.edgeOnly ? '#7ce8c1' : '#96a1b3',
+      toggleEdge: () => this.setState(s => ({ edgeOnly: !s.edgeOnly })),
+      featured: rows.length ? rows[0] : null,
+      secondary: rows.slice(1, 3),
+      hasFeatured: rows.length > 0,
+      tabs,
+      tabName: this.names[lt],
+      leagueFixtures: this.matches.filter(m => m.lg === lt).map(m => this.row(m)),
+      leagueEmpty: this.matches.filter(m => m.lg === lt).length === 0,
+      table: this.standings[lt].map((r, i) => ({
+        pos: i + 1, team: r[0], p: r[1], gd: r[2], pts: r[3], elo: r[4],
+        bg: i % 2 ? 'transparent' : 'rgba(255,255,255,.015)'
+      })),
+      perf: this.perf[lt]
+    };
+  }
+}
+</script>
+</body>
+</html>
