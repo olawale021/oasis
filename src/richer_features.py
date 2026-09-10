@@ -1,3 +1,4 @@
+import math
 from collections import Counter, defaultdict
 from datetime import datetime
 
@@ -45,8 +46,8 @@ class ShotStatsStore:
 
         for row in stat_rows:
             sot, poss, corners = row["shots_on_goal"], row["ball_possession_pct"], row["corner_kicks"]
-            if sot is None and poss is None and corners is None:
-                continue
+            if sot is None and poss is None and corners is None and row["expected_goals"] is None:
+                continue  # xG-only rows (FBref backfill, ingest_xg.py) are kept
             opponent_xg = None
             for other in by_fixture[row["fixture_id"]]:
                 if other["team_id"] != row["team_id"]:

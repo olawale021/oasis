@@ -278,7 +278,8 @@ def load_enriched_buckets(league_cfg: dict = None, score_feeders: bool = False):
         if feeder_id
         else {}
     )
-    samples = backtest_common.collect_samples(matches, transitions, use_mov=True, target_league_id=target_id, score_feeders=score_feeders)
+    schedule = matches_module.load_schedule_matches(conn)
+    samples = backtest_common.collect_samples(matches, transitions, use_mov=True, target_league_id=target_id, score_feeders=score_feeders, schedule_matches=schedule)
     samples = richer_features.enrich_samples(samples, conn, league_id=target_id)
     return conn, samples
 

@@ -359,3 +359,18 @@ def get_market_outcome_probs(conn: sqlite3.Connection, fixture_ids: list) -> dic
             "bookmakers": len(bookmakers),
         }
     return out
+
+
+def get_squad_values_by_league(conn: sqlite3.Connection, league_ids: list, seasons: list = None) -> list:
+    """(fixture_id, team_id, value_eur) for every fixture in the leagues --
+    played or upcoming -- so the SquadValueStore serves both training and
+    prediction from the same table."""
+    query = (
+        "SELECT sv.fixture_id, sv.team_id, sv.value_eur FROM squad_values sv"
+        " JOIN fixtures f ON f.fixture_id = sv.fixture_id WHERE f.league_id IN ({})".format(", ".join("?" for _ in league_ids))
+    )
+    params = list(league_ids)
+    if seasons:
+        query += " AND f.season IN ({})".format(", ".join("?" for _ in seasons))
+        params.extend(seasons)
+    return conn.execute(query, params).fetchall()

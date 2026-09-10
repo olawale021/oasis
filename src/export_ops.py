@@ -34,6 +34,8 @@ PREDICTIONS_PATH = config.ROOT_DIR / "outputs" / "predictions.json"
 STEP_FILES = [
     ("ingest_odds", "Odds snapshots"),
     ("ingest_fixtures", "Fixtures & results"),
+    ("ingest_team_fixtures", "All-competition fixtures"),
+    ("ingest_squad_values", "Squad values (Transfermarkt)"),
     ("predict", "Predictions"),
     ("lifecycle", "Lock & settle"),
 ]

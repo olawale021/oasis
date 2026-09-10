@@ -113,6 +113,32 @@ class FeatureStore:
     def __init__(self):
         self._team_matches = defaultdict(list)
         self._h2h = defaultdict(list)
+        # All-competition kickoff dates per team (cups, Europe, friendlies),
+        # for rest/congestion only. Empty until load_schedule() is called, in
+        # which case the *_all features fall back to league-only values.
+        self._team_schedule = defaultdict(list)
+
+    def load_schedule(self, matches: list) -> None:
+        for match in matches:
+            date = match["kickoff_utc"]
+            self._team_schedule[match["home_team_id"]].append(date)
+            self._team_schedule[match["away_team_id"]].append(date)
+        for dates in self._team_schedule.values():
+            dates.sort()
+
+    def schedule_all(self, team_id: int, before) -> tuple:
+        """schedule() over every competition the club played. Falls back to
+        the league-only schedule when no all-competition index is loaded."""
+        dates = self._team_schedule.get(team_id)
+        if not dates:
+            return self.schedule(team_id, before)
+        history = [d for d in dates if d < before]
+        if not history:
+            return REST_CAP_DAYS, 0
+        rest_days = min((before - history[-1]).total_seconds() / 86400.0, REST_CAP_DAYS)
+        cutoff = before - timedelta(days=CONGESTION_WINDOW_DAYS)
+        congestion = sum(1 for d in history if d >= cutoff)
+        return rest_days, congestion
 
     def load(self, matches: list) -> None:
         for match in matches:
@@ -242,6 +268,8 @@ class FeatureStore:
         a_ew_ppg, a_ew_gf, a_ew_ga = self.ew_form(away_id, before)
         h_rest, h_congestion = self.schedule(home_id, before)
         a_rest, a_congestion = self.schedule(away_id, before)
+        h_rest_all, h_cong_all = self.schedule_all(home_id, before)
+        a_rest_all, a_cong_all = self.schedule_all(away_id, before)
 
         home_adv = 0 if neutral else elo_module.HOME_ADVANTAGE
         elo_diff = elo.get(home_id) + home_adv - elo.get(away_id)
@@ -260,6 +288,11 @@ class FeatureStore:
             "ew_ga_diff": h_ew_ga - a_ew_ga,
             "rest_diff": h_rest - a_rest,
             "congestion_diff": float(h_congestion - a_congestion),
+            # Same two, counting every competition (ingest_team_fixtures.py).
+            "rest_all_diff": h_rest_all - a_rest_all,
+            "congestion_all_diff": float(h_cong_all - a_cong_all),
+            "short_rest_all_diff": float(h_rest_all <= 2.0) - float(a_rest_all <= 2.0),
+            "long_rest_all_diff": float(h_rest_all >= 4.0) - float(a_rest_all >= 4.0),
             # Draw-aware features. The draw logit of a linear model in SIGNED
             # elo_diff cannot represent "draws peak when teams are evenly
             # matched" -- -abs() fixes exactly that representational gap.

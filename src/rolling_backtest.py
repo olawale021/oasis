@@ -29,6 +29,38 @@ DECAY = 0.8  # PRD 8.3 target; outcome_train.py picks the exact shipping decay
 
 B_DRAWS = [round(-0.5 + 0.05 * i, 2) for i in range(21)]
 
+ALLSCHED = {"rest_diff": "rest_all_diff", "congestion_diff": "congestion_all_diff",
+            "short_rest_diff": "short_rest_all_diff", "long_rest_diff": "long_rest_all_diff"}
+
+
+def with_allsched(feats: list) -> list:
+    """Swap league-only schedule features for their all-competition twins."""
+    return [ALLSCHED.get(f, f) for f in feats]
+
+
+def deployed_rows(code: str) -> list:
+    """The league's deployed feature set as a candidate, plus the same set
+    with all-competition rest/congestion -- the paired test for
+    ingest_team_fixtures.py. Empty if no logistic release is registered."""
+    try:
+        import global_train
+        spec = global_train.deployed_league_spec(code)
+    except Exception:
+        return []
+    feats, decay = spec["features"], spec["decay"]
+    rows = [{"name": "deployed", "kind": "logistic", "feats": feats, "decay": decay}]
+    if any(f in ALLSCHED for f in feats):
+        rows.append({"name": "deployed_allsched", "kind": "logistic", "feats": with_allsched(feats), "decay": decay})
+    # Transfermarkt squad value (ingest_squad_values.py): log ratio of squad values.
+    rows.append({"name": "deployed_value", "kind": "logistic", "feats": feats + ["value_diff"], "decay": decay})
+    # API-Football xG (2022/23+): rolling xG for/against. Fair only on folds
+    # where the data exists: run with --folds 2024-2025.
+    xg = [f for f in ("xg_diff", "xga_diff") if f not in feats]
+    if xg:
+        rows.append({"name": "deployed_xg", "kind": "logistic", "feats": feats + xg, "decay": decay})
+    return rows
+
+
 def rows_for(enriched: bool) -> list:
     """Candidate rows for one league's harness run. Enriched leagues (shot
     stats + lineups ingested) get the full historical ladder plus the new
@@ -213,6 +245,7 @@ def main() -> None:
         default=None,
         help='Test seasons for the folds, e.g. "2023-2025" or "2021,2023,2025" (default: 2021-2025)',
     )
+    parser.add_argument("--only", type=str, default=None, help="comma list of candidate names to run (others skipped)")
     args = parser.parse_args()
 
     if args.folds:
@@ -236,8 +269,13 @@ def main() -> None:
         (league_cfg["league_id"],),
     ).fetchone()[0]
     enriched = n_stats > 1000
-    rows = rows_for(enriched)
+    rows = rows_for(enriched) + deployed_rows(args.league)
+    if args.only:
+        keep = {n.strip() for n in args.only.split(",")}
+        rows = [r for r in rows if r["name"] in keep]
     incumbent = INCUMBENT if enriched else BASE_INCUMBENT
+    if args.only and incumbent not in {r["name"] for r in rows}:
+        incumbent = rows[0]["name"]  # paired subset run: first listed row is the control
     print(f"league={args.league} enriched={enriched} incumbent={incumbent} rows={len(rows)}")
 
     per_fold = {}

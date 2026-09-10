@@ -197,6 +197,33 @@ class APIFootballClient:
 
         return {"items": items, "warnings": warnings, "fetched_at": fetched_at, "pages_fetched": page}
 
+    def get_team_fixtures(self, team_id: int, season: int, force_refresh: bool = False) -> dict:
+        """Every fixture a club played in a season, across ALL competitions
+        (/fixtures?team=&season=): league, domestic cups, European ties,
+        friendlies. Used for rest/congestion so a midweek Champions League
+        game counts. Same envelope/paging handling as get_fixtures."""
+        items = []
+        page = 1
+        fetched_at = None
+        while True:
+            cache_key = f"fixtures/team_{team_id}_{season}" if page == 1 else f"fixtures/team_{team_id}_{season}_p{page}"
+            params = {"team": team_id, "season": season}
+            if page > 1:
+                params["page"] = page
+            envelope = self.get("/fixtures", params, cache_key=cache_key, force_refresh=force_refresh)
+            fetched_at = fetched_at or envelope.get("fetched_at")
+            payload = envelope.get("response", {})
+            errors = payload.get("errors")
+            if errors:
+                raise APIFootballError(f"team fixtures fetch errors for team={team_id} season={season}: {errors}")
+            items.extend(payload.get("response", []))
+            paging = payload.get("paging") or {}
+            if paging.get("total", 1) > paging.get("current", page):
+                page = paging.get("current", page) + 1
+                continue
+            break
+        return {"items": items, "fetched_at": fetched_at, "pages_fetched": page}
+
     def get_fixture_statistics(self, fixture_id: int, force_refresh: bool = False) -> dict:
         """Fetch /fixtures/statistics?fixture=. Confirmed non-paginated, but an
         empty response (0 items) is a legitimate non-error outcome for some

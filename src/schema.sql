@@ -217,3 +217,26 @@ CREATE TABLE IF NOT EXISTS locked_predictions (
     settled_at        TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_locked_predictions_settled ON locked_predictions (settled_at);
+
+-- Transfermarkt squad value as of each fixture's kickoff (ingest_squad_values.py).
+-- Point-in-time: sum of the top-N latest player valuations dated on or before
+-- kickoff for players whose latest valuation places them at the club.
+CREATE TABLE IF NOT EXISTS squad_values (
+    fixture_id   INTEGER NOT NULL REFERENCES fixtures(fixture_id),
+    team_id      INTEGER NOT NULL REFERENCES teams(team_id),
+    value_eur    REAL NOT NULL,
+    n_players    INTEGER NOT NULL,
+    as_of        TEXT NOT NULL,
+    computed_at  TEXT NOT NULL,
+    PRIMARY KEY (fixture_id, team_id)
+);
+
+-- API-Football team_id -> Transfermarkt club_id (auto-matched by name, with
+-- explicit overrides in ingest_squad_values.py).
+CREATE TABLE IF NOT EXISTS tm_club_map (
+    team_id      INTEGER PRIMARY KEY REFERENCES teams(team_id),
+    tm_club_id   INTEGER NOT NULL,
+    tm_name      TEXT NOT NULL,
+    method       TEXT NOT NULL,
+    mapped_at    TEXT NOT NULL
+);

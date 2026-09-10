@@ -35,7 +35,7 @@ def actual_class(home_goals: int, away_goals: int) -> int:
     return 1
 
 
-def collect_samples(matches: list, transitions: dict, use_mov: bool = True, target_league_id: int = PL_ID, score_feeders: bool = False) -> list:
+def collect_samples(matches: list, transitions: dict, use_mov: bool = True, target_league_id: int = PL_ID, score_feeders: bool = False, schedule_matches: list = None) -> list:
     """One forward pass over the combined chronological target+feeder stream.
     A match becomes a scored sample only if it's in the target league and both
     teams have matches_played >= MIN_GAMES (checked BEFORE this match). Every
@@ -45,6 +45,8 @@ def collect_samples(matches: list, transitions: dict, use_mov: bool = True, targ
     elo = elo_module.EloRatings(use_mov=use_mov)
     store = features_module.FeatureStore()
     store.load(matches)
+    if schedule_matches:
+        store.load_schedule(schedule_matches)
 
     # Learned rating stores (pi + Berrar), hyperparameters fitted on the
     # warm-up years only (cached per league) -- zero fold leakage.

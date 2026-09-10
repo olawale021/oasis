@@ -38,6 +38,15 @@ run() { STEP="$1"; shift; "$@"; }
 
 run ingest_odds     $PY src/ingest_odds.py
 run ingest_fixtures $PY src/ingest_fixtures.py --league-ids 39,140,135,78,253 --seasons 2026 --force-refresh
+# All-competition fixtures (cups, Europe) for rest/congestion: ~110 calls,
+# so twice a day rather than hourly.
+if [[ "$(date -u +%H)" =~ ^(03|15)$ ]]; then
+  run ingest_team_fixtures $PY src/ingest_team_fixtures.py --seasons 2026 --force-refresh
+fi
+# Transfermarkt squad values (public CSVs, re-downloaded weekly): daily.
+if [[ "$(date -u +%H)" == "04" ]]; then
+  run ingest_squad_values $PY src/ingest_squad_values.py
+fi
 run predict         $PY src/predict.py --horizon-days 8 > /dev/null
 run lock            $PY src/lifecycle.py lock --window-minutes 70
 run settle          $PY src/lifecycle.py settle

@@ -36,13 +36,15 @@ DEFAULT_HORIZON_DAYS = 8
 PREDICT_SEASONS = list(range(backtest_common.HISTORY_START, 2027))
 
 
-def replay_state(matches: list, transitions: dict, rating_params: dict = None):
+def replay_state(matches: list, transitions: dict, rating_params: dict = None, schedule_matches: list = None):
     """One chronological pass over all completed matches: Elo + learned
     rating updates, promotion transitions, feature-store history. Mirrors
     backtest_common.collect_samples without the sample scoring."""
     elo = elo_module.EloRatings(use_mov=True)
     store = features_module.FeatureStore()
     store.load(matches)
+    if schedule_matches:
+        store.load_schedule(schedule_matches)
     pi, berrar = ratings_module.build_stores(
         rating_params or {"pi": {"lam": 0.054, "gamma": 0.7}, "berrar": {"beta": 1.2, "gamma0": 0.3, "omega_o": 0.1, "omega_d": 0.1}}
     )
@@ -116,13 +118,16 @@ def predict_league(conn, league_cfg: dict, horizon_days: int) -> tuple:
         promotion.compute_transitions(conn, target_id, feeder_id, PREDICT_SEASONS) if feeder_id else {}
     )
     rating_params = ratings_module.get_params(league_cfg["code"] if "code" in league_cfg else next(c for c, v in leagues.TARGETS.items() if v["league_id"] == target_id), played)
-    elo, store, applied, pi, berrar, context = replay_state(played, transitions, rating_params)
+    schedule = matches_module.load_schedule_matches(conn, PREDICT_SEASONS)
+    elo, store, applied, pi, berrar, context = replay_state(played, transitions, rating_params, schedule)
 
     stat_rows = db.get_fixture_statistics_by_league(conn, [target_id])
     shot_store = richer_features.ShotStatsStore()
     shot_store.load(stat_rows)
     missing_index = richer_features.MissingPlayersIndex()
     missing_index.load(db.get_missing_player_counts(conn, [target_id]))
+    value_store = richer_features.SquadValueStore()
+    value_store.load(db.get_squad_values_by_league(conn, [target_id]))
     squad_store = richer_features.SquadDisruptionStore()
     squad_store.load(db.get_lineup_players_by_league(conn, [target_id]))
 
@@ -168,7 +173,7 @@ def predict_league(conn, league_cfg: dict, horizon_days: int) -> tuple:
         feats["tier2"] = 0.0
         feats.update(
             richer_features.richer_match_features(
-                row["fixture_id"], home_id, away_id, before, shot_store, missing_index, squad_store
+                row["fixture_id"], home_id, away_id, before, shot_store, missing_index, squad_store, value_store
             )
         )
 
