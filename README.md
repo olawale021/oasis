@@ -159,6 +159,42 @@ calibration improved draw log-loss but not overall mean — not adopted.
 xG-era features and corner_diff: no reliable gain yet (xG only exists from
 2022 onward; revisit when more xG-era seasons accumulate).
 
+## Learner bake-off and blend gate (2026-09-10)
+
+```bash
+python3 src/model_comparison.py            # SVM / random forest / XGBoost vs logistic, same features + split
+python3 src/forest_blend.py [--ship]        # forest as a blend component, 5-fold gate (MIN_GAIN 0.001, v+u <= 0.6)
+```
+
+Random forest earned a blend slot in La Liga (0.60) and Bundesliga (0.35)
+on the 5-fold mean; XGBoost and both SVM kernels were significantly worse
+than logistic (paired bootstrap), and a pooled "global" forest cleared the
+floor nowhere. Forest artifacts are exported as flat tree arrays and walked
+in pure Python (`outcome_model.py`, float32 feature rounding to match
+sklearn); the export refuses unless it reproduces `predict_proba` to <1e-9.
+
+## External data (2026-09-10)
+
+```bash
+python3 src/ingest_team_fixtures.py --seasons 2017-2026   # all competitions per club (cups, Europe); ~110 calls/season
+python3 src/ingest_squad_values.py [--dry-run]            # Transfermarkt squad values per fixture (public CSVs, no account)
+```
+
+* **All-competition fixtures** feed `rest_all_diff` / `congestion_all_diff`
+  (friendlies excluded). Harness: no gain (PL -0.0003, others flat). Data
+  kept; feature not shipped.
+* **Squad values** (`squad_values` table): point-in-time top-25 sum of each
+  player's latest valuation at the club, 18-month staleness cut; clubs
+  name-matched to team ids (`tm_club_map`), reserve sides filtered.
+  Feature `value_diff` = log ratio. Candidate `deployed_value` on the
+  harness ladder.
+* **xG**: Understat and FBref now sit behind bot protection, so the only
+  legitimate source is API-Football's own `expected_goals` (2022/23+;
+  statistics ingested for Serie A and MLS from 2022). Candidate
+  `deployed_xg`, fair only on folds with data: `--folds 2024-2025`.
+
+Paired tests: `python3 src/rolling_backtest.py --league pl --only deployed,deployed_value`.
+
 ## Live predictions
 
 ```bash
