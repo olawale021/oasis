@@ -37,7 +37,7 @@ back if you want to keep its locked/settled ledger.
 ## Day to day
 
 - Code change to the pipeline: `git push`, then `ssh oasis@<ip> 'cd oasis && git pull'`.
-- Retrained models: `rsync -az data/models/ oasis@<ip>:oasis/data/models/`.
+- Retrained models: `./scripts/server/push-models.sh oasis@<ip>` (models + registry + reports, then a chain run).
 - Check health: `ssh oasis@<ip> 'cat oasis/data/status/predict_status.json'`.
 - Secrets live in `oasis/.env` (API-Football) and `oasis/web/.env`
   (Cloudflare token + account id). Neither is in git.
