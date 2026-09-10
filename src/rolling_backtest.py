@@ -55,6 +55,8 @@ def deployed_rows(code: str) -> list:
     rows.append({"name": "deployed_value", "kind": "logistic", "feats": feats + ["value_diff"], "decay": decay})
     # API-Football xG (2022/23+): rolling xG for/against. Fair only on folds
     # where the data exists: run with --folds 2024-2025.
+    # Player-based strength (player_ratings.py): expected-XI plus-minus sum.
+    rows.append({"name": "deployed_xi", "kind": "logistic", "feats": feats + ["xi_strength_diff"], "decay": decay})
     xg = [f for f in ("xg_diff", "xga_diff") if f not in feats]
     if xg:
         rows.append({"name": "deployed_xg", "kind": "logistic", "feats": feats + xg, "decay": decay})

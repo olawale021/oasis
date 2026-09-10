@@ -3,6 +3,9 @@ from collections import Counter, defaultdict
 from datetime import datetime
 
 import db
+import leagues
+import config
+import json
 from features import FORM_WINDOW
 
 PL_ID = 39
@@ -234,6 +237,59 @@ class SquadValueStore:
         return {"value_diff": math.log(h) - math.log(a)}
 
 
+# --- 5. Player-based team strength (adjusted plus-minus, player_ratings.py) --
+
+
+class PlayerStrengthStore:
+    """Team strength = sum of the expected XI's player ratings, where the
+    expected XI is the regular XI (SquadDisruptionStore._regular_xi: most
+    frequent starters over the last FORM_WINDOW matches) -- what is known
+    before lineups are confirmed, for training and serving alike. Ratings
+    come from the latest monthly checkpoint dated on or before the match,
+    each checkpoint fit only on earlier matches (point-in-time). Unknown
+    players rate 0 (league average). Empty when no artifact exists for the
+    league, in which case the feature is 0.0."""
+
+    def __init__(self):
+        self._checkpoints = []  # [(date_str, {player_id: rating})]
+
+    def load(self, artifact: dict = None) -> None:
+        if not artifact:
+            return
+        self._checkpoints = sorted((d, {int(p): r for p, r in v.items()}) for d, v in artifact["checkpoints"].items())
+
+    def _ratings_at(self, before) -> dict:
+        key = before.strftime("%Y-%m-%d")
+        best = None
+        for d, ratings in self._checkpoints:
+            if d <= key:
+                best = ratings
+            else:
+                break
+        return best or {}
+
+    def xi_strength(self, team_id: int, before, squad_store: "SquadDisruptionStore") -> float | None:
+        if not self._checkpoints:
+            return None
+        xi = squad_store._regular_xi(team_id, before)
+        if not xi:
+            return None
+        ratings = self._ratings_at(before)
+        return sum(ratings.get(p, 0.0) for p in xi)
+
+    def diff(self, home_id: int, away_id: int, before, squad_store: "SquadDisruptionStore") -> dict:
+        h = self.xi_strength(home_id, before, squad_store)
+        a = self.xi_strength(away_id, before, squad_store)
+        if h is None or a is None:
+            return {"xi_strength_diff": 0.0}
+        return {"xi_strength_diff": h - a}
+
+
+def load_player_ratings(code: str) -> dict | None:
+    path = config.MODELS_DIR / f"player_ratings_{code}.json"
+    return json.loads(path.read_text()) if path.exists() else None
+
+
 def richer_match_features(
     fixture_id: int,
     home_id: int,
@@ -243,12 +299,14 @@ def richer_match_features(
     missing_index: MissingPlayersIndex,
     squad_store: SquadDisruptionStore,
     value_store: "SquadValueStore" = None,
+    strength_store: "PlayerStrengthStore" = None,
 ) -> dict:
     feats = {}
     feats.update(shot_store.diffs(home_id, away_id, before))
     feats.update(missing_index.diff(fixture_id, home_id, away_id))
     feats.update(squad_store.match_disruption_diff(fixture_id, home_id, away_id, before))
     feats.update((value_store or SquadValueStore()).diff(fixture_id, home_id, away_id))
+    feats.update((strength_store or PlayerStrengthStore()).diff(home_id, away_id, before, squad_store))
     return feats
 
 
@@ -271,12 +329,15 @@ def enrich_samples(samples: list, conn, league_id: int = PL_ID, seasons: list = 
     squad_store.load(lineup_rows)
     value_store = SquadValueStore()
     value_store.load(db.get_squad_values_by_league(conn, [league_id], seasons))
+    strength_store = PlayerStrengthStore()
+    code = next((c for c, cfg in leagues.TARGETS.items() if cfg["league_id"] == league_id), None)
+    strength_store.load(load_player_ratings(code) if code else None)
 
     enriched = []
     for s in samples:
         feats = richer_match_features(
             s["fixture_id"], s["home_team_id"], s["away_team_id"], s["kickoff_utc"],
-            shot_store, missing_index, squad_store, value_store,
+            shot_store, missing_index, squad_store, value_store, strength_store,
         )
         enriched.append({**s, **feats})
     return enriched

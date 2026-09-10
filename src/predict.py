@@ -128,6 +128,8 @@ def predict_league(conn, league_cfg: dict, horizon_days: int) -> tuple:
     missing_index.load(db.get_missing_player_counts(conn, [target_id]))
     value_store = richer_features.SquadValueStore()
     value_store.load(db.get_squad_values_by_league(conn, [target_id]))
+    strength_store = richer_features.PlayerStrengthStore()
+    strength_store.load(richer_features.load_player_ratings(next(c for c, v in leagues.TARGETS.items() if v["league_id"] == target_id)))
     squad_store = richer_features.SquadDisruptionStore()
     squad_store.load(db.get_lineup_players_by_league(conn, [target_id]))
 
@@ -173,7 +175,7 @@ def predict_league(conn, league_cfg: dict, horizon_days: int) -> tuple:
         feats["tier2"] = 0.0
         feats.update(
             richer_features.richer_match_features(
-                row["fixture_id"], home_id, away_id, before, shot_store, missing_index, squad_store, value_store
+                row["fixture_id"], home_id, away_id, before, shot_store, missing_index, squad_store, value_store, strength_store
             )
         )
 
