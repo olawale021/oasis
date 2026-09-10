@@ -20,7 +20,7 @@ for f in .env web/.env; do
   [[ -f "$f" ]] || { echo "missing $f" >&2; exit 1; }
 done
 
-rsync -az --info=progress2 --exclude '__pycache__' --exclude '*.sqlite-journal' data/ "$HOST:oasis/data/"
+rsync -az --exclude '__pycache__' --exclude '*.sqlite-journal' data/ "$HOST:oasis/data/"
 rsync -az .env "$HOST:oasis/.env"
 rsync -az web/.env "$HOST:oasis/web/.env"
 echo "Synced. Now: ssh $HOST 'cd oasis && ./scripts/matchday.sh'"
