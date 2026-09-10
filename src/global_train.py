@@ -95,11 +95,12 @@ def deployed_league_spec(code: str) -> dict:
     registry = json.loads((config.MODELS_DIR / "registry.json").read_text())
     entries = [e for e in registry if e["role"] == role]
     deployed = next((e for e in entries if e["deployed"]), None)
-    entry = deployed if deployed and deployed.get("features") else None
+    entry = deployed if deployed and deployed.get("features") and deployed.get("model_type") != "blend" else None
     if entry is None:
-        # Deployed artifact is a blend (no flat feature list) -- fall back to
+        # Deployed artifact is a blend (its feature list is a union across
+        # components, not a league spec) -- fall back to
         # the most recent registered pure-logistic release for this role.
-        with_features = [e for e in entries if e.get("features")]
+        with_features = [e for e in entries if e.get("features") and e.get("model_type") != "blend"]
         if not with_features:
             raise SystemExit(f"{code}: no registered release with a feature list for role {role}")
         entry = max(with_features, key=lambda e: e["registered_at"])

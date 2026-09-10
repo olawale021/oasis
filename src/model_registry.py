@@ -65,6 +65,20 @@ def _role_of(artifact_path: Path) -> str:
     return artifact_path.stem
 
 
+def artifact_features(artifact: dict) -> list | None:
+    """Feature list for the registry row. A blend has none at its top level;
+    report the ordered union across its components (recursively), so the
+    performance page's 'N features' is meaningful for blends too."""
+    if artifact.get("type") == "blend":
+        seen = []
+        for c in artifact.get("components", []):
+            for f in artifact_features(c["model"]) or []:
+                if f not in seen:
+                    seen.append(f)
+        return seen or None
+    return artifact.get("features")
+
+
 def build_entry(artifact_path: Path, deployed: bool, notes: str = None) -> dict:
     artifact = json.loads(artifact_path.read_text())
     version = artifact.get("label") or artifact.get("type") or artifact_path.stem
@@ -76,7 +90,7 @@ def build_entry(artifact_path: Path, deployed: bool, notes: str = None) -> dict:
         "model_type": artifact.get("type"),
         "training_window": artifact.get("trained_on"),
         "selected_on": artifact.get("selected_on"),
-        "features": artifact.get("features"),
+        "features": artifact_features(artifact),
         "parameters": {k: artifact[k] for k in PARAM_KEYS if k in artifact},
         "calibration": (
             f"temperature scaling (T={artifact['temperature']})" if "temperature" in artifact else None
