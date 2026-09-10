@@ -8,6 +8,7 @@ import backtest_common
 import config
 import db
 import goals_model
+import leagues
 import matches as matches_module
 import metrics
 import model_registry
@@ -26,11 +27,15 @@ def team_roster(samples: list) -> list:
     return sorted(teams)
 
 
-def build_design_matrix(samples: list, team_ids: list) -> tuple:
+STRENGTH_SCALE = 400.0  # Elo points per unit of the strength covariate
+
+
+def build_design_matrix(samples: list, team_ids: list, use_strength: bool = False) -> tuple:
     index = {t: i for i, t in enumerate(team_ids)}
     n_teams = len(team_ids)
     n = len(samples)
-    X = np.zeros((2 * n, 2 * n_teams + 1))
+    n_cols = 2 * n_teams + 1 + (1 if use_strength else 0)
+    X = np.zeros((2 * n, n_cols))
     y = np.zeros(2 * n)
     for i, s in enumerate(samples):
         home_idx = index[s["home_team_id"]]
@@ -43,6 +48,15 @@ def build_design_matrix(samples: list, team_ids: list) -> tuple:
         X[2 * i + 1, away_idx] = 1.0
         X[2 * i + 1, n_teams + home_idx] = 1.0
         y[2 * i + 1] = s["away_goals"]
+
+        if use_strength:
+            # Match-strength covariate (PRD 9.6 gap): long-run attack/defense
+            # rates alone compress mus toward the league mean; the Elo margin
+            # lets favorites' rates spread. +s for the home side's goals row,
+            # -s for the away side's.
+            strength = s["elo_diff"] / STRENGTH_SCALE
+            X[2 * i, n_cols - 1] = strength
+            X[2 * i + 1, n_cols - 1] = -strength
     return X, y
 
 
@@ -85,13 +99,13 @@ def fit_rho(fit_samples: list, artifact: dict, weights=None, step: float = RHO_S
     for i, s in enumerate(fit_samples):
         x, y = s["home_goals"], s["away_goals"]
         if x <= 1 and y <= 1:
-            mu_h, mu_a = goals_model.expected_goals(s["home_team_id"], s["away_team_id"], artifact)
+            mu_h, mu_a = goals_model.expected_goals(s["home_team_id"], s["away_team_id"], artifact, s.get("elo_diff", 0.0))
             w = 1.0 if weights is None else float(weights[i])
             entries.append((x, y, mu_h, mu_a, w))
 
     all_mus = []
     for s in fit_samples:
-        mu_h, mu_a = goals_model.expected_goals(s["home_team_id"], s["away_team_id"], artifact)
+        mu_h, mu_a = goals_model.expected_goals(s["home_team_id"], s["away_team_id"], artifact, s.get("elo_diff", 0.0))
         all_mus.append((mu_h, mu_a))
     lo, hi = rho_bounds(all_mus)
 
@@ -109,29 +123,39 @@ def fit_rho(fit_samples: list, artifact: dict, weights=None, step: float = RHO_S
     return best_rho, best_ll - loglik(0.0), (lo, hi)
 
 
-def fit_goals_artifact(buckets: dict, decay=None) -> dict:
-    """The full goals-model ship protocol minus test scoring/writing: alpha
-    grid on train->validate deviance, final PoissonRegressor fit on
-    train+validate+calibrate with decay weights, then the DC rho profile fit
-    on the same set. Reused by rolling_backtest.py."""
+DECAY_GRID = [None, 0.9, 0.8, 0.7]  # None = flat control; PRD 8.3 target is 0.8
+
+
+def fit_goals_artifact(buckets: dict, decay="grid") -> dict:
+    """The full goals-model ship protocol minus test scoring/writing:
+    joint (alpha, decay) grid on train->validate deviance, final
+    PoissonRegressor fit on train+validate+calibrate with the selected decay
+    weights, then the DC rho profile fit on the same set. Flat-history fits
+    dilute current team strength with seven-year-old seasons and compress the
+    mu spread toward the league mean -- the decay grid lets validation decide.
+    Pass an explicit decay (or None) to skip the decay grid; the default
+    "grid" searches it. Reused by rolling_backtest.py."""
     train, validate, calibrate = buckets["train"], buckets["validate"], buckets["calibrate"]
     team_ids = team_roster(train + validate + calibrate)
 
-    X_train, y_train = build_design_matrix(train, team_ids)
-    X_validate, y_validate = build_design_matrix(validate, team_ids)
-    w_train = season_weights(train, decay)
-
-    best_alpha, best_dev = None, float("inf")
-    for alpha in ALPHAS:
-        clf = PoissonRegressor(alpha=alpha, fit_intercept=True, max_iter=300).fit(
-            X_train, y_train, sample_weight=w_train
-        )
-        dev = poisson_deviance_np(y_validate, clf.predict(X_validate))
-        if dev < best_dev:
-            best_dev, best_alpha = dev, alpha
+    decay_grid = DECAY_GRID if decay == "grid" else [decay]
+    best_alpha, best_dev, best_decay, best_strength = None, float("inf"), None, False
+    for use_strength in (False, True):
+        X_train, y_train = build_design_matrix(train, team_ids, use_strength)
+        X_validate, y_validate = build_design_matrix(validate, team_ids, use_strength)
+        for d in decay_grid:
+            w_train = season_weights(train, d)
+            for alpha in ALPHAS:
+                clf = PoissonRegressor(alpha=alpha, fit_intercept=True, max_iter=300).fit(
+                    X_train, y_train, sample_weight=w_train
+                )
+                dev = poisson_deviance_np(y_validate, clf.predict(X_validate))
+                if dev < best_dev:
+                    best_dev, best_alpha, best_decay, best_strength = dev, alpha, d, use_strength
+    decay = best_decay
 
     fit_samples = train + validate + calibrate
-    X_fit, y_fit = build_design_matrix(fit_samples, team_ids)
+    X_fit, y_fit = build_design_matrix(fit_samples, team_ids, best_strength)
     w_fit = season_weights(fit_samples, decay)
     clf = PoissonRegressor(alpha=best_alpha, fit_intercept=True, max_iter=300).fit(
         X_fit, y_fit, sample_weight=w_fit
@@ -151,9 +175,20 @@ def fit_goals_artifact(buckets: dict, decay=None) -> dict:
         "fallback_defense_coef": 0.0,
         "decay": decay,
     }
+    if best_strength:
+        artifact["strength_coef"] = float(coef[2 * n_teams + 1])
+        artifact["strength_scale"] = STRENGTH_SCALE
 
     fixture_weights = None if decay is None else season_weights(fit_samples, decay)[::2]
     rho, loglik_gain, bounds = fit_rho(fit_samples, artifact, weights=fixture_weights)
+    # Shrink toward independence: sampling SE for rho is ~1.2/sqrt(n); apply
+    # the DC correction only where |rho| clears 2*SE (Petretta 2025: England
+    # ~0, Germany genuinely negative). A sub-noise rho adds nothing.
+    rho_se = 1.2 / math.sqrt(max(len(fit_samples), 1))
+    artifact["rho_raw"] = rho
+    artifact["rho_se"] = rho_se
+    if abs(rho) < 2.0 * rho_se:
+        rho = 0.0
     artifact["rho"] = rho
     artifact["rho_bounds"] = list(bounds)
     artifact["rho_loglik_gain"] = loglik_gain
@@ -161,18 +196,29 @@ def fit_goals_artifact(buckets: dict, decay=None) -> dict:
 
 
 def main() -> None:
+    import argparse
+
+    parser = argparse.ArgumentParser(description="Train and ship a league goals model.")
+    parser.add_argument("--league", type=str, default="pl", help=f"League code: {list(leagues.TARGETS)}")
+    args = parser.parse_args()
+    league_cfg = leagues.target_config(args.league)
+    target_id, feeder_id = league_cfg["league_id"], league_cfg["feeder_id"]
+
     conn = db.get_connection()
-    matches = matches_module.load_matches(conn, [backtest_common.PL_ID, backtest_common.CHAMP_ID])
-    transitions = promotion.compute_transitions(
-        conn, backtest_common.PL_ID, backtest_common.CHAMP_ID, backtest_common.ALL_SEASONS
+    league_ids = [target_id] + ([feeder_id] if feeder_id else [])
+    matches = matches_module.load_matches(conn, league_ids)
+    transitions = (
+        promotion.compute_transitions(conn, target_id, feeder_id, backtest_common.ALL_SEASONS)
+        if feeder_id
+        else {}
     )
-    samples = backtest_common.collect_samples(matches, transitions, use_mov=True)
+    samples = backtest_common.collect_samples(matches, transitions, use_mov=True, target_league_id=target_id)
     buckets = backtest_common.split_by_season(samples)
     backtest_common.verify_no_leakage(buckets)
 
-    model = fit_goals_artifact(buckets, decay=None)
+    model = fit_goals_artifact(buckets)  # joint (alpha, decay) grid on validate deviance
     print(
-        f"goals model: alpha={model['alpha']} rho={model['rho']:.4f} "
+        f"goals model: alpha={model['alpha']} decay={model['decay']} strength={model.get('strength_coef')} rho={model['rho']:.4f} "
         f"rho_bounds=({model['rho_bounds'][0]:.4f}, {model['rho_bounds'][1]:.4f}) "
         f"rho_loglik_gain={model['rho_loglik_gain']:.2f}"
     )
@@ -182,7 +228,7 @@ def main() -> None:
 
     test_scored = []
     for s in buckets["test"]:
-        mu_home, mu_away = goals_model.expected_goals(s["home_team_id"], s["away_team_id"], model)
+        mu_home, mu_away = goals_model.expected_goals(s["home_team_id"], s["away_team_id"], model, s.get("elo_diff", 0.0))
         test_scored.append({**s, "mu_home": mu_home, "mu_away": mu_away})
 
     rho = model["rho"]
@@ -193,7 +239,7 @@ def main() -> None:
     model["test_btts_ece"] = metrics.btts_calibration(test_scored, rho=rho)["ece"]
 
     config.MODELS_DIR.mkdir(parents=True, exist_ok=True)
-    out_path = config.MODELS_DIR / "goals_model.json"
+    out_path = config.MODELS_DIR / league_cfg["goals_artifact"]
     out_path.write_text(json.dumps(model, indent=2))
     model_registry.register(out_path, deployed=True)
     print(

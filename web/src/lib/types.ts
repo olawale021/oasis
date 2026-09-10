@@ -6,6 +6,8 @@ export interface ScoreMatrix {
   grid: number[][];
   peakRow: number;
   peakCol: number;
+  /** Probability (%) of the modal scoreline — typically only 10–13%. */
+  peakPct: number;
   over15: number;
   over25: number;
   over35: number;
@@ -42,6 +44,12 @@ export interface MatchRecord {
   muHome: number;
   muAway: number;
   matrix: ScoreMatrix;
+  /** Most likely scoreline consistent with the model's top outcome, and its
+   * probability (%) — more informative than the unconditional mode, which is
+   * 1–1 for almost every realistic pair of goal rates. */
+  condScore: string;
+  condPct: number;
+  pick: "home" | "draw" | "away";
   missingHome: number;
   missingAway: number;
   factors: FactorWeight[];
@@ -97,7 +105,74 @@ export interface LeagueLogLossRow {
   label: string;
   value: number;
   detail: string;
+  modelLl?: number;
+  freqLl?: number;
+  harnessLl?: number | null;
+  harnessEloLl?: number | null;
+  harnessFreqLl?: number | null;
   belowBaseline: boolean;
+}
+
+export interface ReleaseHistoryEntry {
+  version: string;
+  registered_at: string;
+  deployed: boolean;
+  test_log_loss: number | null;
+  test_accuracy: number | null;
+  test_rps: number | null;
+  features: number;
+  /** 5-fold walk-forward mean for this version, when the league's latest
+   * harness report evaluated it. Null for versions the harness never ran. */
+  harness_ll?: number | null;
+}
+
+export interface ModelRelease {
+  lg: LeagueCode;
+  version: string;
+  deployed_at: string;
+  /** When the serving release is a *_live refold, the evaluation-track
+   * version whose harness-frozen methodology it refits. */
+  methodology_version?: string | null;
+  test_log_loss: number | null;
+  n_releases: number;
+  /** 5-fold walk-forward mean — the selection metric and honest headline. */
+  harness_ll?: number;
+  harness_elo_ll?: number | null;
+  harness_freq_ll?: number | null;
+  harness_folds?: number;
+  /** Chronological (oldest first). */
+  history: ReleaseHistoryEntry[];
+}
+
+export interface RecentResult {
+  id: number;
+  lg: LeagueCode;
+  home: string;
+  away: string;
+  kickoffUtc: string;
+  ko: string;
+  score: string;
+  /** The immutable pre-kickoff prediction — null for fixtures played before
+   * the lock lifecycle went live (2026-08-20). */
+  locked: {
+    h: number;
+    d: number;
+    a: number;
+    correct: boolean | null;
+    logLoss: number | null;
+    modelVersion: string;
+    stage: string;
+  } | null;
+  /** Point-in-time reconstruction by the serving model (pre-match features,
+   * no leakage) for fixtures that were never locked. Display-only — clearly
+   * labeled, never part of the live record. */
+  retro: {
+    h: number;
+    d: number;
+    a: number;
+    correct: boolean;
+    modelVersion: string;
+  } | null;
 }
 
 export interface Headline {

@@ -1,6 +1,8 @@
 import elo as elo_module
 import features as features_module
+import leagues
 import promotion
+import ratings as ratings_module
 
 PL_ID = 39
 CHAMP_ID = 40
@@ -15,7 +17,13 @@ TRAIN_SEASONS = list(range(2017, 2023))  # 2017/18 .. 2022/23 (6 seasons)
 VALIDATE_SEASON = 2023  # 2023/24
 CALIBRATE_SEASON = 2024  # 2024/25
 TEST_SEASON = 2025  # 2025/26
-ALL_SEASONS = list(range(2017, 2026))
+# Replay/state history starts earlier than the scored window: 2010-2016
+# fixtures (2012+ for MLS) are ingested as Elo/feature WARM-UP only -- they
+# never enter train/validate/calibrate/test buckets (split_by_season keys on
+# the season lists above), so scored splits are unchanged and before/after
+# comparisons stay clean.
+HISTORY_START = 2010
+ALL_SEASONS = list(range(HISTORY_START, 2026))
 
 
 def actual_class(home_goals: int, away_goals: int) -> int:
@@ -27,16 +35,24 @@ def actual_class(home_goals: int, away_goals: int) -> int:
     return 1
 
 
-def collect_samples(matches: list, transitions: dict, use_mov: bool = True) -> list:
-    """One forward pass over the combined chronological PL+Championship stream.
-    A match becomes a scored sample only if it's in the PL and both teams have
-    matches_played >= MIN_GAMES (checked BEFORE this match). Every match
-    unconditionally applies pending promotion transitions, updates Elo, and
-    (via the pre-loaded, date-filtered FeatureStore) contributes to form/h2h,
-    regardless of scoring eligibility."""
+def collect_samples(matches: list, transitions: dict, use_mov: bool = True, target_league_id: int = PL_ID, score_feeders: bool = False) -> list:
+    """One forward pass over the combined chronological target+feeder stream.
+    A match becomes a scored sample only if it's in the target league and both
+    teams have matches_played >= MIN_GAMES (checked BEFORE this match). Every
+    match unconditionally applies pending promotion transitions, updates Elo,
+    and (via the pre-loaded, date-filtered FeatureStore) contributes to
+    form/h2h, regardless of scoring eligibility."""
     elo = elo_module.EloRatings(use_mov=use_mov)
     store = features_module.FeatureStore()
     store.load(matches)
+
+    # Learned rating stores (pi + Berrar), hyperparameters fitted on the
+    # warm-up years only (cached per league) -- zero fold leakage.
+    code = next(c for c, cfg in leagues.TARGETS.items() if cfg["league_id"] == target_league_id)
+    rating_params = ratings_module.get_params(code, matches)
+    pi, berrar = ratings_module.build_stores(rating_params)
+    context = features_module.LeagueContext()
+    feeder_id = leagues.TARGETS[code]["feeder_id"]
 
     applied = set()
     samples = []
@@ -51,14 +67,23 @@ def collect_samples(matches: list, transitions: dict, use_mov: bool = True) -> l
         promotion.apply_pending_transition(elo, home_id, season, transitions, applied)
         promotion.apply_pending_transition(elo, away_id, season, transitions, applied)
 
+        is_target = match["league_id"] == target_league_id
+        is_feeder_row = score_feeders and feeder_id is not None and match["league_id"] == feeder_id
         eligible = (
-            match["league_id"] == PL_ID
+            (is_target or is_feeder_row)
             and elo.matches_played.get(home_id, 0) >= MIN_GAMES
             and elo.matches_played.get(away_id, 0) >= MIN_GAMES
         )
 
         if eligible:
             feats = store.match_features(home_id, away_id, before, elo, neutral)
+            feats.update(leagues.league_dummies(target_league_id))
+            gh_hat, ga_hat = berrar.pred_goals(home_id, away_id)
+            feats["pi_pred_gd"] = pi.pred_gd(home_id, away_id)
+            feats["ber_gh"] = gh_hat
+            feats["ber_ga"] = ga_hat
+            feats.update(context.features(match["league_id"]))
+            feats["tier2"] = 1.0 if is_feeder_row else 0.0
             samples.append(
                 {
                     "fixture_id": match["fixture_id"],
@@ -74,6 +99,9 @@ def collect_samples(matches: list, transitions: dict, use_mov: bool = True) -> l
             )
 
         elo.update(home_id, away_id, match["home_goals"], match["away_goals"], neutral)
+        pi.update(home_id, away_id, match["home_goals"], match["away_goals"])
+        berrar.update(home_id, away_id, match["home_goals"], match["away_goals"])
+        context.update(match["league_id"], season, home_id, away_id, match["home_goals"], match["away_goals"])
 
     return samples
 

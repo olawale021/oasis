@@ -9,7 +9,12 @@ def load_model(path: Path) -> dict:
     return json.loads(path.read_text())
 
 
-def expected_goals(home_id: int, away_id: int, model: dict) -> tuple:
+def expected_goals(home_id: int, away_id: int, model: dict, elo_diff: float = 0.0) -> tuple:
+    """Expected goals per side. Models fit with a strength covariate scale
+    the rates by the match's Elo difference (home-perspective, includes home
+    advantage) -- long-run attack/defense rates alone compress mus toward the
+    league mean and understate favorites. elo_diff=0 degrades to the plain
+    attack/defense prediction."""
     team_index = {t: i for i, t in enumerate(model["teams"])}
     intercept = model["intercept"]
     home_flag_coef = model["home_flag_coef"]
@@ -23,8 +28,13 @@ def expected_goals(home_id: int, away_id: int, model: dict) -> tuple:
     a_away = attack_coef[team_index[away_id]] if away_id in team_index else fallback_attack
     d_away = defense_coef[team_index[away_id]] if away_id in team_index else fallback_defense
 
-    mu_home = math.exp(intercept + home_flag_coef + a_home + d_away)
-    mu_away = math.exp(intercept + a_away + d_home)
+    strength = 0.0
+    strength_coef = model.get("strength_coef")
+    if strength_coef is not None:
+        strength = strength_coef * (elo_diff / model.get("strength_scale", 400.0))
+
+    mu_home = math.exp(intercept + home_flag_coef + a_home + d_away + strength)
+    mu_away = math.exp(intercept + a_away + d_home - strength)
     return mu_home, mu_away
 
 

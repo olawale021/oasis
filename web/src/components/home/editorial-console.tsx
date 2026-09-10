@@ -1,12 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import { HEADLINE, LEAGUE_NAMES, MATCHES, PREDICTIONS_GENERATED_AT, utcClock } from "@/lib/data";
+import { LEAGUE_NAMES, utcClock } from "@/lib/data";
+import type { LiveData } from "@/lib/data";
 import { deriveMatch, sortByKickoff } from "@/lib/derive";
 
-export function EditorialConsole() {
+export function EditorialConsole({ live }: { live: LiveData }) {
   // Highest-conviction forecast first: largest gap between best and worst outcome.
-  const rows = sortByKickoff(MATCHES.map(deriveMatch));
+  const rows = sortByKickoff(live.matches.map(deriveMatch));
   const featured =
     [...rows].sort(
       (x, y) => Math.max(y.h, y.a) - Math.min(y.h, y.a) - (Math.max(x.h, x.a) - Math.min(x.h, x.a)),
@@ -38,7 +39,7 @@ export function EditorialConsole() {
           <span className="text-[21px] font-extrabold leading-none tracking-[-0.02em]">Upcoming forecasts</span>
           <span className="font-mono text-[11.5px] font-medium text-[var(--oasis-text-muted)]">
             {LEAGUE_NAMES.ALL} · {rows.length} {rows.length === 1 ? "match" : "matches"} · published{" "}
-            {utcClock(PREDICTIONS_GENERATED_AT)} UTC
+            {utcClock(live.predictions_generated_at)} UTC
           </span>
         </div>
 
@@ -134,9 +135,9 @@ export function EditorialConsole() {
               BACKTEST RECORD
             </div>
             <div className="mt-1 font-mono text-[12.5px] font-medium leading-[1.7] text-[var(--oasis-text-muted)]">
-              log loss {HEADLINE.log_loss.toFixed(3)}
+              log loss {live.headline.log_loss.toFixed(3)}
               <br />
-              {HEADLINE.n_test} matches · {HEADLINE.season.replace(" (backtest)", "")}
+              {live.headline.n_test} matches · {live.headline.season.replace(" (backtest)", "")}
             </div>
           </div>
           <div className="flex-1 rounded-[10px] border border-[var(--oasis-border)] bg-[var(--oasis-surface)] p-[13px]">

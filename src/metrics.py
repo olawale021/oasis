@@ -70,12 +70,124 @@ def calibration_error(samples: list, n_bins: int = 10) -> dict:
     return {"ece": ece, "bins": bin_reports}
 
 
+def balanced_accuracy(samples: list) -> float:
+    """Mean recall across the three classes -- robust to class imbalance
+    (draws are the minority class in every league)."""
+    correct = [0, 0, 0]
+    totals = [0, 0, 0]
+    for s in samples:
+        p = (s["p_home"], s["p_draw"], s["p_away"])
+        pred = max(range(3), key=lambda i: p[i])
+        totals[s["cls"]] += 1
+        correct[s["cls"]] += int(pred == s["cls"])
+    recalls = [c / t for c, t in zip(correct, totals) if t]
+    return sum(recalls) / len(recalls) if recalls else 0.0
+
+
+def confusion_matrix(samples: list) -> dict:
+    """3x3 counts: rows = actual (home/draw/away), cols = predicted top class."""
+    labels = ["home", "draw", "away"]
+    grid = [[0, 0, 0] for _ in range(3)]
+    for s in samples:
+        p = (s["p_home"], s["p_draw"], s["p_away"])
+        pred = max(range(3), key=lambda i: p[i])
+        grid[s["cls"]][pred] += 1
+    return {
+        "labels": labels,
+        "rows_actual_cols_predicted": grid,
+    }
+
+
+def _logit(p: float) -> float:
+    p = min(max(p, EPS), 1.0 - EPS)
+    return math.log(p / (1.0 - p))
+
+
+def calibration_slope_intercept(samples: list, iters: int = 50) -> dict:
+    """Logistic recalibration fit (Cox 1958 style), pooled one-vs-rest over
+    all three classes: y ~ sigmoid(intercept + slope * logit(p)). Perfect
+    calibration gives slope=1, intercept=0; slope<1 means overconfident,
+    slope>1 underconfident. Pure-Python Newton-Raphson, no sklearn."""
+    xs, ys = [], []
+    for s in samples:
+        p = (s["p_home"], s["p_draw"], s["p_away"])
+        for c in range(3):
+            xs.append(_logit(p[c]))
+            ys.append(1.0 if s["cls"] == c else 0.0)
+
+    a, b = 0.0, 1.0  # intercept, slope
+    for _ in range(iters):
+        ga = gb = 0.0
+        haa = hab = hbb = 0.0
+        for x, y in zip(xs, ys):
+            z = a + b * x
+            mu = 1.0 / (1.0 + math.exp(-max(min(z, 35.0), -35.0)))
+            w = mu * (1.0 - mu)
+            ga += mu - y
+            gb += (mu - y) * x
+            haa += w
+            hab += w * x
+            hbb += w * x * x
+        det = haa * hbb - hab * hab
+        if abs(det) < 1e-12:
+            break
+        da = (hbb * ga - hab * gb) / det
+        db = (haa * gb - hab * ga) / det
+        a -= da
+        b -= db
+        if abs(da) < 1e-10 and abs(db) < 1e-10:
+            break
+    return {"slope": b, "intercept": a}
+
+
+def paired_bootstrap_log_loss_delta(scored_a: list, scored_b: list, n_boot: int = 2000, seed: int = 7) -> dict:
+    """Paired bootstrap 95% CI for mean(log_loss_a - log_loss_b) over the
+    same matches. Negative delta = model A assigns better probabilities.
+    'significant' = the CI excludes zero. Both lists must score the SAME
+    matches in the same order."""
+    import random as _random
+
+    assert len(scored_a) == len(scored_b), "paired bootstrap requires identically-sized scored lists"
+    for sa, sb in zip(scored_a, scored_b):
+        assert sa["fixture_id"] == sb["fixture_id"], "paired bootstrap requires the same matches in the same order"
+
+    def loss(s):
+        p = (s["p_home"], s["p_draw"], s["p_away"])
+        return -math.log(max(p[s["cls"]], EPS))
+
+    deltas = [loss(sa) - loss(sb) for sa, sb in zip(scored_a, scored_b)]
+    n = len(deltas)
+    point = sum(deltas) / n
+
+    rng = _random.Random(seed)
+    means = []
+    for _ in range(n_boot):
+        total = 0.0
+        for _ in range(n):
+            total += deltas[rng.randrange(n)]
+        means.append(total / n)
+    means.sort()
+    lo = means[int(0.025 * n_boot)]
+    hi = means[int(0.975 * n_boot) - 1]
+    return {
+        "delta": point,
+        "ci_lo": lo,
+        "ci_hi": hi,
+        "significant": (lo > 0 and hi > 0) or (lo < 0 and hi < 0),
+        "n_matches": n,
+        "n_boot": n_boot,
+    }
+
+
 def all_outcome_metrics(samples: list) -> dict:
     return {
         "log_loss": log_loss(samples),
         "brier": brier_score(samples),
         "rps": rps(samples),
+        # Accuracy metrics are reported for context only and are never a
+        # model-selection criterion -- selection is on out-of-sample log loss.
         "accuracy": accuracy(samples),
+        "balanced_accuracy": balanced_accuracy(samples),
         "n": len(samples),
     }
 

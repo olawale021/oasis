@@ -9,14 +9,31 @@ HOME_ADVANTAGE = 60.0
 INITIAL_ELO = 1500.0
 
 
+TREND_WINDOW = 6  # matches; ~6 league rounds of momentum
+
+
 @dataclass
 class EloRatings:
     ratings: dict = field(default_factory=dict)
     matches_played: dict = field(default_factory=dict)
     use_mov: bool = True
+    # Post-match rating snapshots per team, appended by update() only --
+    # promotion-transition adjustments deliberately do NOT enter the history,
+    # so trend() measures on-pitch momentum, not administrative rating jumps.
+    history: dict = field(default_factory=dict)
 
     def get(self, team_id: int) -> float:
         return self.ratings.get(team_id, INITIAL_ELO)
+
+    def trend(self, team_id: int, window: int = TREND_WINDOW) -> float:
+        """Rating change over the team's last `window` matches (post-match
+        snapshots). Positive = improving. Cold start (fewer than 2 matches)
+        is neutral 0."""
+        h = self.history.get(team_id)
+        if not h or len(h) < 2:
+            return 0.0
+        base = h[-(window + 1)] if len(h) > window else h[0]
+        return h[-1] - base
 
     @staticmethod
     def mov_multiplier(home_goals: int, away_goals: int) -> float:
@@ -60,6 +77,8 @@ class EloRatings:
         self.ratings[away_id] = self.get(away_id) + away_k * (away_result - expected_away)
         self.matches_played[home_id] = self.matches_played.get(home_id, 0) + 1
         self.matches_played[away_id] = self.matches_played.get(away_id, 0) + 1
+        self.history.setdefault(home_id, []).append(self.ratings[home_id])
+        self.history.setdefault(away_id, []).append(self.ratings[away_id])
 
     def fit(self, matches: list) -> None:
         for match in sorted(matches, key=lambda m: m["kickoff_utc"]):

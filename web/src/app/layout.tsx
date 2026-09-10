@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Instrument_Sans, JetBrains_Mono } from "next/font/google";
 import { SiteHeader } from "@/components/site-header";
+import { getLive } from "@/lib/live-server";
 import "./globals.css";
 
 const instrumentSans = Instrument_Sans({
@@ -21,14 +22,15 @@ export const metadata: Metadata = {
     "Transparent, calibrated pre-match probabilities for the Premier League, La Liga, Serie A, Bundesliga and MLS. Probabilistic forecasts, not betting advice.",
 };
 
-export default function RootLayout({ children }: LayoutProps<"/">) {
+export default async function RootLayout({ children }: LayoutProps<"/">) {
+  const live = await getLive();
   return (
     <html
       lang="en"
       className={`${instrumentSans.variable} ${jetBrainsMono.variable} h-full antialiased dark`}
     >
       <body className="flex min-h-full flex-col bg-[var(--oasis-bg)] text-[var(--oasis-text)]">
-        <SiteHeader />
+        <SiteHeader generatedAt={live.generated_at} />
         <main className="flex-1">{children}</main>
       </body>
     </html>

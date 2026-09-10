@@ -3,19 +3,19 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { ProbabilityBar, ProbabilityLegend } from "@/components/probability-bar";
-import { FRESHNESS, HEADLINE, LEAGUE_CODES, LEAGUE_NAMES, MATCHES, utcClock, utcDayLabel } from "@/lib/data";
-import { CALIBRATION_BARS } from "@/lib/data";
+import { LEAGUE_CODES, LEAGUE_NAMES, utcClock, utcDayLabel } from "@/lib/data";
+import type { LiveData } from "@/lib/data";
 import { deriveMatch, sortByKickoff } from "@/lib/derive";
 import type { DerivedMatch, LeagueFilter } from "@/lib/types";
 
-const DAY_TABS = ["Today", "Tomorrow", "Week"] as const;
+const DAY_TABS = ["Today", "Tomorrow", "Week", "Results"] as const;
 type DayTab = (typeof DAY_TABS)[number];
 
 function utcDayStamp(d: Date): string {
   return d.toISOString().slice(0, 10);
 }
 
-export function HomeConsole() {
+export function HomeConsole({ live }: { live: LiveData }) {
   const [league, setLeague] = useState<LeagueFilter>("ALL");
   const [confirmedOnly, setConfirmedOnly] = useState(false);
   const [highConfOnly, setHighConfOnly] = useState(false);
@@ -26,7 +26,7 @@ export function HomeConsole() {
   const [dayTab, setDayTab] = useState<DayTab>("Week");
   const [expanded, setExpanded] = useState<number | null>(null);
 
-  const derived = useMemo(() => sortByKickoff(MATCHES.map(deriveMatch)), []);
+  const derived = useMemo(() => sortByKickoff(live.matches.map(deriveMatch)), []);
 
   const rows = useMemo(() => {
     let out = derived.filter(
@@ -51,7 +51,13 @@ export function HomeConsole() {
     return counts;
   }, [derived]);
 
+  const resultRows = useMemo(
+    () => live.recent_results.filter((r) => league === "ALL" || r.lg === league),
+    [league, live.recent_results],
+  );
+
   const heading = useMemo(() => {
+    if (dayTab === "Results") return "Recent results";
     if (rows.length === 0) return dayTab === "Week" ? "Upcoming fixtures" : dayTab;
     const first = utcDayLabel(rows[0].kickoffUtc);
     const last = utcDayLabel(rows[rows.length - 1].kickoffUtc);
@@ -63,44 +69,48 @@ export function HomeConsole() {
   return (
     <div className="grid w-full grid-cols-1 lg:grid-cols-[212px_1fr_268px]">
       {/* Left rail */}
-      <div className="flex flex-col gap-[22px] border-b border-[var(--oasis-border)] bg-[var(--oasis-bg-rail)] p-4 lg:border-b-0 lg:border-r">
+      <div className="flex flex-col gap-[14px] border-b border-[var(--oasis-border)] bg-[var(--oasis-bg-rail)] p-3 lg:gap-[22px] lg:border-b-0 lg:border-r lg:p-4">
         <div className="flex flex-col gap-2">
           <div className="font-mono text-[10px] font-semibold tracking-[0.1em] text-[var(--oasis-text-dim)]">
             LEAGUES
           </div>
-          {(["ALL", ...LEAGUE_CODES] as LeagueFilter[]).map((code) => {
-            const active = league === code;
-            return (
-              <button
-                key={code}
-                type="button"
-                onClick={() => {
-                  setLeague(code);
-                  setExpanded(null);
-                }}
-                className="flex items-center justify-between rounded-[7px] px-[9px] py-[7px] text-left text-[14px] font-semibold transition-colors"
-                style={{
-                  color: active ? "var(--oasis-text)" : "var(--oasis-text-muted)",
-                  background: active ? "var(--oasis-surface-raised)" : "transparent",
-                }}
-              >
-                <span>{LEAGUE_NAMES[code]}</span>
-                <span className="font-mono text-[11px] font-medium text-[var(--oasis-text-dim)]">
-                  {leagueCounts[code]}
-                </span>
-              </button>
-            );
-          })}
+          <div className="flex gap-[6px] overflow-x-auto pb-1 lg:flex-col lg:gap-2 lg:overflow-visible lg:pb-0">
+            {(["ALL", ...LEAGUE_CODES] as LeagueFilter[]).map((code) => {
+              const active = league === code;
+              return (
+                <button
+                  key={code}
+                  type="button"
+                  onClick={() => {
+                    setLeague(code);
+                    setExpanded(null);
+                  }}
+                  className="flex flex-none items-center gap-[7px] whitespace-nowrap rounded-full border px-[11px] py-[6px] text-left text-[12.5px] font-semibold transition-colors lg:justify-between lg:gap-0 lg:rounded-[7px] lg:border-transparent lg:px-[9px] lg:py-[7px] lg:text-[14px]"
+                  style={{
+                    color: active ? "var(--oasis-text)" : "var(--oasis-text-muted)",
+                    background: active ? "var(--oasis-surface-raised)" : "transparent",
+                    borderColor: active ? "var(--oasis-border-strong)" : "var(--oasis-border)",
+                  }}
+                >
+                  <span>{LEAGUE_NAMES[code]}</span>
+                  <span className="font-mono text-[11px] font-medium text-[var(--oasis-text-dim)]">
+                    {leagueCounts[code]}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
         </div>
 
         <div className="flex flex-col gap-[9px]">
           <div className="font-mono text-[10px] font-semibold tracking-[0.1em] text-[var(--oasis-text-dim)]">
             FILTERS
           </div>
+          <div className="flex flex-wrap gap-2 lg:flex-col lg:gap-[9px]">
           <button
             type="button"
             onClick={() => setConfirmedOnly((v) => !v)}
-            className="cursor-pointer rounded-[7px] px-[10px] py-[7px] text-left text-[12px] font-semibold"
+            className="cursor-pointer rounded-[7px] px-[10px] py-[6px] text-left text-[11.5px] font-semibold lg:py-[7px] lg:text-[12px]"
             style={
               confirmedOnly
                 ? { color: "var(--oasis-positive)", background: "var(--oasis-positive-tint)", border: "1px solid rgba(47,207,154,.35)" }
@@ -112,7 +122,7 @@ export function HomeConsole() {
           <button
             type="button"
             onClick={() => setHighConfOnly((v) => !v)}
-            className="cursor-pointer rounded-[7px] px-[10px] py-[7px] text-left text-[12px] font-semibold"
+            className="cursor-pointer rounded-[7px] px-[10px] py-[6px] text-left text-[11.5px] font-semibold lg:py-[7px] lg:text-[12px]"
             style={
               highConfOnly
                 ? { color: "var(--oasis-positive)", background: "var(--oasis-positive-tint)", border: "1px solid rgba(47,207,154,.35)" }
@@ -125,7 +135,7 @@ export function HomeConsole() {
             <button
               type="button"
               onClick={() => setEdgeOnly((v) => !v)}
-              className="cursor-pointer rounded-[7px] px-[10px] py-[7px] text-left text-[12px] font-semibold"
+              className="cursor-pointer rounded-[7px] px-[10px] py-[6px] text-left text-[11.5px] font-semibold lg:py-[7px] lg:text-[12px]"
               style={
                 edgeOnly
                   ? { color: "var(--oasis-positive)", background: "var(--oasis-positive-tint)", border: "1px solid rgba(47,207,154,.35)" }
@@ -136,38 +146,39 @@ export function HomeConsole() {
             </button>
           ) : (
             <div
-              className="rounded-[7px] border border-dashed border-[var(--oasis-border)] px-[10px] py-[7px] text-[12px] font-semibold text-[var(--oasis-text-dim)]"
+              className="rounded-[7px] border border-dashed border-[var(--oasis-border)] px-[10px] py-[6px] text-[11.5px] font-semibold text-[var(--oasis-text-dim)] lg:py-[7px] lg:text-[12px]"
               title="No odds snapshots archived yet for these fixtures"
             >
               Edge ≥ 3% — needs odds
             </div>
           )}
+          </div>
         </div>
 
         <div className="rounded-[9px] border border-[var(--oasis-border)] bg-[var(--oasis-surface)] p-[11px]">
           <div className="font-mono text-[10px] font-semibold tracking-[0.1em] text-[var(--oasis-text-dim)]">
             DATA FRESHNESS (UTC)
           </div>
-          <div className="mt-1 font-mono text-[11.5px] font-medium leading-[1.6] text-[var(--oasis-text-muted)]">
-            fixtures {utcClock(FRESHNESS.fixtures)}
-            <br />
-            injuries {utcClock(FRESHNESS.injuries)}
-            <br />
-            lineups {utcClock(FRESHNESS.lineups)}
-            <br />
-            odds {utcClock(FRESHNESS.odds)}
+          <div className="mt-1 flex flex-wrap gap-x-[14px] font-mono text-[11px] font-medium leading-[1.6] text-[var(--oasis-text-muted)] lg:flex-col lg:gap-0 lg:text-[11.5px]">
+            <span>fixtures {utcClock(live.freshness.fixtures)}</span>
+            <span>injuries {utcClock(live.freshness.injuries)}</span>
+            <span>lineups {utcClock(live.freshness.lineups)}</span>
+            <span>odds {utcClock(live.freshness.odds)}</span>
           </div>
         </div>
       </div>
 
       {/* Centre column */}
-      <div className="flex min-w-0 flex-col gap-[14px] p-[18px] px-5">
-        <div className="flex flex-wrap items-baseline gap-3">
-          <span className="text-[22px] font-extrabold leading-none tracking-[-0.02em]">{heading}</span>
-          <span className="font-mono text-[12.5px] font-medium text-[var(--oasis-text-muted)]">
-            {LEAGUE_NAMES[league]} · {rows.length} {rows.length === 1 ? "match" : "matches"}
+      <div className="flex min-w-0 flex-col gap-[14px] p-3 sm:p-[18px] sm:px-5">
+        <div className="flex flex-wrap items-baseline gap-x-3 gap-y-2">
+          <span className="text-[19px] font-extrabold leading-none tracking-[-0.02em] sm:text-[22px]">{heading}</span>
+          <span className="font-mono text-[11.5px] font-medium text-[var(--oasis-text-muted)] sm:text-[12.5px]">
+            {LEAGUE_NAMES[league]} ·{" "}
+            {dayTab === "Results"
+              ? `${resultRows.length} played (last 7 days)`
+              : `${rows.length} ${rows.length === 1 ? "match" : "matches"}`}
           </span>
-          <span className="ml-auto flex gap-[6px] text-[11.5px] font-semibold">
+          <span className="ml-auto flex flex-wrap gap-[6px] text-[11.5px] font-semibold">
             {DAY_TABS.map((tab) => (
               <button
                 key={tab}
@@ -186,13 +197,16 @@ export function HomeConsole() {
           </span>
         </div>
 
-        <div className="flex items-center border-b border-[var(--oasis-border)] px-1 pb-[9px] font-mono text-[10.5px] font-semibold tracking-[0.09em] text-[var(--oasis-text-dim)]">
-          <span className="w-[270px]">MATCH</span>
+        {dayTab === "Results" && <ResultsList rows={resultRows} />}
+
+        {dayTab !== "Results" && (<>
+        <div className="flex items-center border-b border-[var(--oasis-border)] px-1 pb-[9px] font-mono text-[10px] font-semibold tracking-[0.09em] text-[var(--oasis-text-dim)] sm:text-[10.5px]">
+          <span className="hidden md:block md:w-[270px]">MATCH</span>
           <span className="flex flex-1 items-center gap-[14px]">
-            WIN PROBABILITY
+            <span className="hidden md:inline">WIN PROBABILITY</span>
             <ProbabilityLegend />
           </span>
-          <span className="w-[100px] text-right">LIKELY SCORE</span>
+          <span className="hidden w-[100px] text-right md:block">LIKELY SCORE</span>
           <span className="relative flex w-[70px] items-center justify-end gap-[5px]">
             EDGE
             <button
@@ -221,7 +235,7 @@ export function HomeConsole() {
           return (
             <div key={m.id}>
               {showDay && (
-                <div className="pb-[6px] pt-2 font-mono text-[11.5px] font-semibold tracking-[0.08em] text-[var(--oasis-text-dim)]">
+                <div className="pb-[6px] pt-2 font-mono text-[12.5px] font-semibold tracking-[0.08em] text-[var(--oasis-text-dim)]">
                   {utcDayLabel(m.kickoffUtc).toUpperCase()}
                 </div>
               )}
@@ -233,36 +247,53 @@ export function HomeConsole() {
                 <button
                   type="button"
                   onClick={() => setExpanded(isOpen ? null : m.id)}
-                  className="flex w-full items-center px-1 py-[14px] text-left"
+                  className="flex w-full flex-col gap-[10px] px-1 py-3 text-left md:flex-row md:items-center md:gap-0 md:py-[14px]"
                 >
-                  <span className="flex w-[270px] flex-col gap-[4px] pr-4">
-                    <span className="text-[16px] font-bold tracking-[-0.01em]">
+                  <span className="flex flex-col gap-[3px] md:w-[270px] md:gap-[4px] md:pr-4">
+                    <span className="text-[15px] font-bold tracking-[-0.01em] md:text-[17.5px]">
                       {m.home} <span className="font-medium text-[var(--oasis-text-faint)]">v</span> {m.away}
                     </span>
                     <span
-                      className="font-mono text-[11.5px] font-medium"
+                      className="font-mono text-[11px] font-medium md:text-[12.5px]"
                       style={{ color: m.statusConfirmed ? "var(--oasis-positive)" : "var(--oasis-text-muted)" }}
                     >
                       {m.metaLabel}
                     </span>
                   </span>
-                  <span className="flex flex-1 items-center pr-[18px]">
-                    <ProbabilityBar home={m.h} draw={m.d} away={m.a} height={24} labeled className="flex-1" />
+                  <span className="flex w-full items-center md:w-auto md:flex-1 md:pr-[18px]">
+                    <ProbabilityBar home={m.h} draw={m.d} away={m.a} height={26} labeled className="w-full md:max-w-[440px]" />
                   </span>
-                  <span className="w-[100px] text-right font-mono text-[14px] font-medium">{m.score}</span>
-                  <span
-                    className="w-[70px] text-right font-mono text-[12.5px]"
-                    style={{
-                      color: m.hot ? "var(--oasis-positive)" : "var(--oasis-text-dim)",
-                      fontWeight: m.hot ? 700 : 500,
-                    }}
-                    title={
-                      m.edge === null
-                        ? "no odds collected yet"
-                        : "model home-win probability minus market consensus (margin removed)"
-                    }
-                  >
-                    {m.edgeLabel}
+                  <span className="flex w-full items-center justify-between md:contents">
+                    <span
+                      className="flex flex-col md:w-[100px] md:items-end"
+                      title={`most likely ${m.pick === "draw" ? "scoreline" : `${m.pick}-win scoreline`} (overall mode ${m.score}, ${m.matrix.peakPct}%)`}
+                    >
+                      <span className="font-mono text-[14px] font-medium md:text-[15.5px]">{m.condScore}</span>
+                      <span className="font-mono text-[10.5px] font-medium text-[var(--oasis-text-dim)] md:text-[11.5px]">
+                        {Math.round(m.condPct)}% chance
+                      </span>
+                    </span>
+                    <span
+                      className="flex flex-col items-end md:w-[70px]"
+                      title={
+                        m.edge === null
+                          ? "no odds collected yet"
+                          : "model home-win probability minus market consensus (margin removed)"
+                      }
+                    >
+                      <span className="font-mono text-[9.5px] font-semibold tracking-[0.08em] text-[var(--oasis-text-dim)] md:hidden">
+                        EDGE
+                      </span>
+                      <span
+                        className="font-mono text-[12px] md:text-[12.5px]"
+                        style={{
+                          color: m.hot ? "var(--oasis-positive)" : "var(--oasis-text-dim)",
+                          fontWeight: m.hot ? 700 : 500,
+                        }}
+                      >
+                        {m.edgeLabel}
+                      </span>
+                    </span>
                   </span>
                 </button>
 
@@ -303,8 +334,18 @@ export function HomeConsole() {
                         <span>{m.conf}</span>
                       </div>
                       <div className="flex justify-between">
-                        <span className="text-[var(--oasis-text-muted)]">likely score</span>
-                        <span>{m.score}</span>
+                        <span className="text-[var(--oasis-text-muted)]">
+                          likely score{m.pick !== "draw" ? ` (if ${m.pick} win)` : ""}
+                        </span>
+                        <span>
+                          {m.condScore} · {Math.round(m.condPct)}%
+                        </span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-[var(--oasis-text-muted)]">most likely overall</span>
+                        <span className="text-[var(--oasis-text-muted)]">
+                          {m.score} · {Math.round(m.matrix.peakPct)}%
+                        </span>
                       </div>
                       <div className="flex justify-between">
                         <span className="text-[var(--oasis-text-muted)]">market (no vig)</span>
@@ -326,17 +367,18 @@ export function HomeConsole() {
             No fixtures match these filters {dayTab === "Week" ? "in the current horizon" : dayTab.toLowerCase()}.
           </div>
         )}
+        </>)}
 
         <div
-          className="flex items-center gap-4 rounded-[10px] p-[15px] px-[17px]"
+          className="flex flex-col items-start gap-3 rounded-[10px] p-4 sm:flex-row sm:items-center sm:gap-4 sm:p-[15px] sm:px-[17px]"
           style={{
             border: "1px solid var(--oasis-border-strong)",
             background: "linear-gradient(120deg,rgba(77,156,246,.1),rgba(47,207,154,.06))",
           }}
         >
           <div className="flex-1">
-            <div className="text-[14.5px] font-bold">Founding-member lifetime access</div>
-            <div className="mt-[3px] font-mono text-[11.5px] font-medium text-[var(--oasis-text-muted)]">
+            <div className="text-[13.5px] font-bold sm:text-[14.5px]">Founding-member lifetime access</div>
+            <div className="mt-[3px] font-mono text-[11px] font-medium text-[var(--oasis-text-muted)] sm:text-[11.5px]">
               one-time purchase · quantity capped · opens at paid launch
             </div>
           </div>
@@ -353,30 +395,30 @@ export function HomeConsole() {
       <div className="flex min-w-0 flex-col gap-[14px] border-t border-[var(--oasis-border)] bg-[var(--oasis-bg-rail)] p-4 lg:border-t-0 lg:border-l">
         <div className="flex flex-col gap-[9px] rounded-[10px] border border-[var(--oasis-border)] bg-[var(--oasis-surface)] p-[13px]">
           <div className="font-mono text-[10px] font-semibold tracking-[0.1em] text-[var(--oasis-text-dim)]">
-            2025/26 BACKTEST · {HEADLINE.n_test} MATCHES
+            2025/26 BACKTEST · {live.headline.n_test} MATCHES
           </div>
           <div className="flex justify-between font-mono text-[12.5px] font-medium">
             <span className="text-[var(--oasis-text-muted)]">log loss</span>
-            <span>{HEADLINE.log_loss.toFixed(3)}</span>
+            <span>{live.headline.log_loss.toFixed(3)}</span>
           </div>
           <div className="flex justify-between font-mono text-[12.5px] font-medium">
             <span className="text-[var(--oasis-text-muted)]">accuracy</span>
-            <span>{HEADLINE.accuracy.toFixed(1)}%</span>
+            <span>{live.headline.accuracy.toFixed(1)}%</span>
           </div>
           <div className="flex justify-between font-mono text-[12.5px] font-medium">
             <span className="text-[var(--oasis-text-muted)]">calibration (ECE)</span>
-            <span>{HEADLINE.ece.toFixed(3)}</span>
+            <span>{live.headline.ece.toFixed(3)}</span>
           </div>
           <div className="flex justify-between font-mono text-[12.5px] font-medium">
             <span className="text-[var(--oasis-text-muted)]">vs market</span>
             <span title="odds collection starts at launch">—</span>
           </div>
           <div className="mt-[2px] flex h-[44px] items-end gap-[3px]" title="observed win rate by predicted-probability band">
-            {CALIBRATION_BARS.map((h, i) => (
+            {live.calibration_bars.map((h, i) => (
               <span
                 key={i}
                 className="flex-1 rounded-[2px]"
-                style={{ height: `${Math.max(4, h)}%`, background: i === CALIBRATION_BARS.length - 1 ? "var(--oasis-home)" : "#2b3a52" }}
+                style={{ height: `${Math.max(4, h)}%`, background: i === live.calibration_bars.length - 1 ? "var(--oasis-home)" : "#2b3a52" }}
               />
             ))}
           </div>
@@ -415,7 +457,7 @@ function EdgeInfoPopover({ matches, onClose }: { matches: DerivedMatch[]; onClos
 
   return (
     <div
-      className="absolute right-0 top-[24px] z-20 max-h-[70vh] w-[400px] cursor-default overflow-y-auto rounded-[10px] border border-[var(--oasis-border-strong)] bg-[var(--oasis-surface)] p-4 text-left font-sans normal-case tracking-normal shadow-[0_12px_32px_rgba(0,0,0,.5)]"
+      className="fixed inset-x-3 top-[72px] z-30 max-h-[70vh] cursor-default overflow-y-auto rounded-[10px] border border-[var(--oasis-border-strong)] bg-[var(--oasis-surface)] p-4 text-left font-sans normal-case tracking-normal shadow-[0_12px_32px_rgba(0,0,0,.5)] md:absolute md:inset-x-auto md:right-0 md:top-[24px] md:z-20 md:w-[400px]"
       onClick={(e) => e.stopPropagation()}
     >
       <div className="flex items-baseline justify-between">
@@ -507,5 +549,91 @@ function EdgeInfoPopover({ matches, onClose }: { matches: DerivedMatch[]; onClos
         </p>
       </div>
     </div>
+  );
+}
+
+function ResultsList({ rows }: { rows: import("@/lib/types").RecentResult[] }) {
+  let lastDay = "";
+  return (
+    <>
+      <div className="flex items-center border-b border-[var(--oasis-border)] px-1 pb-[9px] font-mono text-[10px] font-semibold tracking-[0.09em] text-[var(--oasis-text-dim)] sm:text-[10.5px]">
+        <span className="hidden md:block md:w-[270px]">MATCH</span>
+        <span className="flex flex-1 items-center gap-[14px]">
+          <span className="hidden md:inline">LOCKED PRE-KICKOFF PREDICTION</span>
+          <ProbabilityLegend />
+        </span>
+        <span className="hidden w-[80px] text-right md:block">FINAL</span>
+        <span className="hidden w-[110px] text-right md:block">VERDICT</span>
+      </div>
+      {rows.map((r) => {
+        const day = r.kickoffUtc.slice(0, 10);
+        const showDay = day !== lastDay;
+        lastDay = day;
+        return (
+          <div key={r.id}>
+            {showDay && (
+              <div className="pb-[6px] pt-2 font-mono text-[12.5px] font-semibold tracking-[0.08em] text-[var(--oasis-text-dim)]">
+                {utcDayLabel(r.kickoffUtc).toUpperCase()}
+              </div>
+            )}
+            <div className="flex flex-col gap-[10px] border-b border-[var(--oasis-border-row)] px-1 py-3 md:flex-row md:items-center md:gap-0 md:py-[14px]">
+              <span className="flex flex-col gap-[3px] md:w-[270px] md:gap-[4px] md:pr-4">
+                <span className="text-[15px] font-bold tracking-[-0.01em] md:text-[17.5px]">
+                  {r.home} <span className="font-medium text-[var(--oasis-text-faint)]">v</span> {r.away}
+                </span>
+                <span className="font-mono text-[11px] font-medium text-[var(--oasis-text-muted)] md:text-[12.5px]">
+                  {LEAGUE_NAMES[r.lg]} · {r.ko} UTC{r.locked ? ` · ${r.locked.modelVersion}` : ""}
+                </span>
+              </span>
+              <span className="flex w-full flex-col gap-[3px] md:w-auto md:flex-1 md:pr-[18px]">
+                {r.locked ? (
+                  <ProbabilityBar home={r.locked.h} draw={r.locked.d} away={r.locked.a} height={26} labeled className="w-full max-w-[440px]" />
+                ) : r.retro ? (
+                  <>
+                    <span className="opacity-70">
+                      <ProbabilityBar home={r.retro.h} draw={r.retro.d} away={r.retro.a} height={22} labeled className="flex w-full max-w-[440px]" />
+                    </span>
+                    <span className="font-mono text-[10px] font-medium text-[var(--oasis-text-dim)]">
+                      retrospective ({r.retro.modelVersion}, pre-match data only) — not locked before kickoff
+                    </span>
+                  </>
+                ) : (
+                  <span className="rounded-[6px] border border-dashed border-[var(--oasis-border)] px-3 py-[5px] font-mono text-[11px] font-medium text-[var(--oasis-text-dim)]">
+                    no locked prediction — played before lock automation ran (locking live from 21 Aug 2026)
+                  </span>
+                )}
+              </span>
+              <span className="flex w-full items-center justify-between md:contents">
+              <span className="font-mono text-[15px] font-bold md:w-[80px] md:text-right md:text-[16.5px]">
+                <span className="mr-[6px] font-sans text-[9.5px] font-semibold tracking-[0.08em] text-[var(--oasis-text-dim)] md:hidden">FINAL</span>
+                {r.score}
+              </span>
+              <span className="text-right font-mono text-[11.5px] font-medium md:w-[110px] md:text-[12px]">
+                {r.locked && r.locked.correct !== null ? (
+                  <span style={{ color: r.locked.correct ? "var(--oasis-positive)" : "var(--oasis-away)" }}>
+                    {r.locked.correct ? "✓ top pick" : "✗ missed"}
+                    {r.locked.logLoss !== null && (
+                      <span className="block text-[10.5px] text-[var(--oasis-text-dim)]">ll {r.locked.logLoss.toFixed(2)}</span>
+                    )}
+                  </span>
+                ) : r.retro ? (
+                  <span className="opacity-75" style={{ color: r.retro.correct ? "var(--oasis-positive)" : "var(--oasis-away)" }}>
+                    {r.retro.correct ? "✓ retro" : "✗ retro"}
+                  </span>
+                ) : (
+                  <span className="text-[var(--oasis-text-dim)]">—</span>
+                )}
+              </span>
+              </span>
+            </div>
+          </div>
+        );
+      })}
+      {rows.length === 0 && (
+        <div className="rounded-[9px] border border-dashed border-[var(--oasis-border-strong)] p-[22px] text-center text-[13px] font-semibold text-[var(--oasis-text-muted)]">
+          No finished matches in the last 7 days for this selection.
+        </div>
+      )}
+    </>
   );
 }

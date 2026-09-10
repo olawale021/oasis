@@ -30,3 +30,37 @@ PROMOTION_PAIRS = {
     135: 136,
     78: 79,
 }
+
+
+# Per-target-league model configuration: short artifact code, web display
+# code, and feeder league (None = no promotion bridging, e.g. MLS).
+# PL keeps its Phase 1 artifact filenames so registry roles/history persist.
+TARGETS = {
+    "pl": {"league_id": 39, "web_code": "EPL", "feeder_id": 40,
+           "outcome_artifact": "outcome_model_pl.json", "goals_artifact": "goals_model.json"},
+    "lal": {"league_id": 140, "web_code": "LAL", "feeder_id": 141,
+            "outcome_artifact": "outcome_model_lal.json", "goals_artifact": "goals_model_lal.json"},
+    "sea": {"league_id": 135, "web_code": "SEA", "feeder_id": 136,
+            "outcome_artifact": "outcome_model_sea.json", "goals_artifact": "goals_model_sea.json"},
+    "bun": {"league_id": 78, "web_code": "BUN", "feeder_id": 79,
+            "outcome_artifact": "outcome_model_bun.json", "goals_artifact": "goals_model_bun.json"},
+    "mls": {"league_id": 253, "web_code": "MLS", "feeder_id": None,
+            "outcome_artifact": "outcome_model_mls.json", "goals_artifact": "goals_model_mls.json"},
+}
+
+
+def target_config(code: str) -> dict:
+    if code not in TARGETS:
+        raise KeyError(f"unknown league code {code!r}; choices: {list(TARGETS)}")
+    return {"code": code, **TARGETS[code]}
+
+
+# League-identity one-hot features for the PRD 9.2 global model. PL is the
+# reference class (all zeros).
+DUMMY_FEATURES = ["lg_lal", "lg_sea", "lg_bun", "lg_mls"]
+_DUMMY_BY_LEAGUE_ID = {140: "lg_lal", 135: "lg_sea", 78: "lg_bun", 253: "lg_mls"}
+
+
+def league_dummies(league_id: int) -> dict:
+    active = _DUMMY_BY_LEAGUE_ID.get(league_id)
+    return {name: (1.0 if name == active else 0.0) for name in DUMMY_FEATURES}

@@ -1,8 +1,10 @@
-// Real pipeline data, exported by src/export_web.py (run it after predict.py
-// to refresh). Nothing in this module is fabricated: fields the pipeline
-// cannot supply yet (odds, non-EPL leagues, live locked predictions) are
-// null / empty and the UI renders honest placeholder states for them.
-import live from "@/data/live.json";
+// Static configuration + pure derivation over the live data payload.
+//
+// The payload (produced by src/export_web.py) lives in Cloudflare KV in
+// production — the matchday chain uploads it with `wrangler kv key put`, so
+// data updates never require a redeploy. Server components fetch it via
+// lib/live-server.ts and pass it (or slices of it) down as props; the JSON
+// bundled at build time is only the dev/cold-start fallback.
 import type {
   ConfidenceBand,
   Headline,
@@ -12,8 +14,35 @@ import type {
   LeaguePerf,
   LedgerRow,
   MatchRecord,
+  ModelRelease,
+  RecentResult,
   StandingsRow,
 } from "./types";
+
+export interface LiveData {
+  generated_at: string;
+  predictions_generated_at: string;
+  live_leagues: LeagueCode[];
+  model_versions: Record<LeagueCode, string>;
+  model_releases: ModelRelease[];
+  freshness: Record<string, string | null>;
+  matches: MatchRecord[];
+  standings: Record<LeagueCode, StandingsRow[]>;
+  league_perf: Record<LeagueCode, LeaguePerf>;
+  ledger: LedgerRow[];
+  confidence_bands: ConfidenceBand[];
+  calibration_bars: number[];
+  league_log_loss: LeagueLogLossRow[];
+  headline: Headline;
+  live_record: {
+    locked: number;
+    settled: number;
+    log_loss: number | null;
+    brier: number | null;
+    accuracy: number | null;
+  };
+  recent_results: RecentResult[];
+}
 
 export const LEAGUE_CODES: LeagueCode[] = ["EPL", "LAL", "SEA", "BUN", "MLS"];
 
@@ -26,28 +55,12 @@ export const LEAGUE_NAMES: Record<LeagueFilter, string> = {
   MLS: "MLS",
 };
 
-/** Leagues the model actually covers today (PRD Phase 2 adds the rest). */
-export const LIVE_LEAGUES: LeagueCode[] = ["EPL"];
-
-export const MATCHES = live.matches as MatchRecord[];
-export const STANDINGS = live.standings as Record<LeagueCode, StandingsRow[]>;
-export const LEAGUE_PERF = live.league_perf as Record<LeagueCode, LeaguePerf>;
-export const LEDGER = live.ledger as LedgerRow[];
-export const CONFIDENCE_BANDS = live.confidence_bands as ConfidenceBand[];
-export const CALIBRATION_BARS = live.calibration_bars as number[];
-export const LEAGUE_LOG_LOSS = live.league_log_loss as LeagueLogLossRow[];
-export const HEADLINE = live.headline as Headline;
-export const MODEL_VERSION = live.model_version as string;
-export const GENERATED_AT = live.generated_at as string;
-export const PREDICTIONS_GENERATED_AT = live.predictions_generated_at as string;
-export const FRESHNESS = live.freshness as Record<string, string | null>;
-
-export function getMatchById(id: number): MatchRecord | undefined {
-  return MATCHES.find((m) => m.id === id);
+export function getMatchById(live: LiveData, id: number): MatchRecord | undefined {
+  return live.matches.find((m) => m.id === id);
 }
 
-export function matchesByLeague(lg: LeagueCode): MatchRecord[] {
-  return MATCHES.filter((m) => m.lg === lg);
+export function matchesByLeague(live: LiveData, lg: LeagueCode): MatchRecord[] {
+  return live.matches.filter((m) => m.lg === lg);
 }
 
 export function utcClock(iso: string | null | undefined): string {

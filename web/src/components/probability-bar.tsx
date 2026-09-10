@@ -14,7 +14,7 @@ interface ProbabilityBarProps {
 export function ProbabilityBar({ home, draw, away, height = 9, labeled = false, className = "" }: ProbabilityBarProps) {
   const segment = (value: number, background: string, color: string, label: string) => (
     <span
-      className="flex items-center justify-center overflow-hidden whitespace-nowrap font-mono text-[11px] font-bold"
+      className="flex items-center justify-center overflow-hidden whitespace-nowrap font-mono text-[11px] font-bold sm:text-[12.5px]"
       style={{ width: `${value}%`, background, color }}
       title={`${label} ${value.toFixed(1)}%`}
     >

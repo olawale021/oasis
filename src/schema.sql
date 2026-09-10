@@ -172,3 +172,48 @@ CREATE TABLE IF NOT EXISTS odds_snapshots (
     PRIMARY KEY (fixture_id, snapshot, bookmaker_id, market_id, outcome)
 );
 CREATE INDEX IF NOT EXISTS idx_odds_snapshots_fixture ON odds_snapshots (fixture_id, snapshot);
+
+-- PRD 13.4/13.5: the immutable prediction record. One row per fixture,
+-- written at lock time (shortly before kickoff) and NEVER updated except by
+-- settlement, which fills the result/scoring columns exactly once. The
+-- probabilities, features, market snapshot, and model identity are frozen
+-- as they stood at lock time -- this is the public track record.
+CREATE TABLE IF NOT EXISTS locked_predictions (
+    fixture_id        INTEGER PRIMARY KEY REFERENCES fixtures(fixture_id),
+    league_code       TEXT NOT NULL,
+    season            INTEGER NOT NULL,
+    kickoff_utc       TEXT NOT NULL,
+    locked_at         TEXT NOT NULL,
+    stage             TEXT NOT NULL,            -- initial | injury_update | final
+    home              TEXT NOT NULL,
+    away              TEXT NOT NULL,
+    p_home            REAL NOT NULL,
+    p_draw            REAL NOT NULL,
+    p_away            REAL NOT NULL,
+    likely_score      TEXT,
+    mu_home           REAL,
+    mu_away           REAL,
+    over_2_5          REAL,
+    btts              REAL,
+    confidence        TEXT,
+    why               TEXT,
+    market_p_home     REAL,
+    market_p_draw     REAL,
+    market_p_away     REAL,
+    market_snapshot   TEXT,
+    market_bookmakers INTEGER,
+    model_version     TEXT NOT NULL,
+    model_checksum    TEXT NOT NULL,
+    goals_version     TEXT,
+    goals_checksum    TEXT,
+    features_json     TEXT NOT NULL,
+    -- settlement (filled once, when the result is known)
+    result_home       INTEGER,
+    result_away       INTEGER,
+    outcome           INTEGER,                  -- 0 home, 1 draw, 2 away
+    log_loss          REAL,
+    brier             REAL,
+    correct           INTEGER,
+    settled_at        TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_locked_predictions_settled ON locked_predictions (settled_at);

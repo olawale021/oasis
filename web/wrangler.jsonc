@@ -10,5 +10,11 @@
 	"assets": {
 		"directory": ".open-next/assets",
 		"binding": "ASSETS"
-	}
+	},
+	// Live pipeline data: the matchday chain uploads web/src/data/live.json
+	// to this namespace (key "live"); pages render from it per request, so
+	// data updates need a KV put, not a redeploy.
+	"kv_namespaces": [
+		{ "binding": "LIVE_KV", "id": "bb39d63bc5c84af2bf8d1160ca738915" }
+	]
 }

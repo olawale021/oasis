@@ -1,22 +1,12 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { ProbabilityBar, ProbabilityLegend } from "@/components/probability-bar";
-import {
-  HEADLINE,
-  LEAGUE_CODES,
-  LEAGUE_NAMES,
-  LEAGUE_PERF,
-  LIVE_LEAGUES,
-  MODEL_VERSION,
-  STANDINGS,
-  matchesByLeague,
-} from "@/lib/data";
+import { LEAGUE_CODES, LEAGUE_NAMES, matchesByLeague } from "@/lib/data";
+import { getLive } from "@/lib/live-server";
 import { deriveMatch } from "@/lib/derive";
 import type { LeagueCode } from "@/lib/types";
 
-export function generateStaticParams() {
-  return LEAGUE_CODES.map((code) => ({ code }));
-}
+export const dynamic = "force-dynamic";
 
 function isLeagueCode(value: string): value is LeagueCode {
   return (LEAGUE_CODES as string[]).includes(value);
@@ -26,21 +16,22 @@ export default async function LeaguePage({ params }: { params: Promise<{ code: s
   const { code: rawCode } = await params;
   const code = rawCode.toUpperCase();
   if (!isLeagueCode(code)) notFound();
+  const live = await getLive();
 
-  const isLive = LIVE_LEAGUES.includes(code);
-  const fixtures = matchesByLeague(code).map(deriveMatch);
-  const standings = STANDINGS[code] ?? [];
-  const perf = LEAGUE_PERF[code];
+  const isLive = live.live_leagues.includes(code);
+  const fixtures = matchesByLeague(live, code).map(deriveMatch);
+  const standings = live.standings[code] ?? [];
+  const perf = live.league_perf[code];
   const round = fixtures[0]?.round ?? null;
 
   return (
     <div className="w-full">
-      <div className="flex items-center gap-[24px] border-b border-[var(--oasis-border)] bg-[var(--oasis-surface)] px-[22px] py-[14px]">
+      <div className="flex items-center gap-[18px] overflow-x-auto border-b border-[var(--oasis-border)] bg-[var(--oasis-surface)] px-4 py-3 sm:gap-[24px] sm:px-[22px] sm:py-[14px]">
         {LEAGUE_CODES.map((c) => (
           <Link
             key={c}
             href={`/league/${c}`}
-            className="pb-[3px] text-[13.5px] font-semibold"
+            className="whitespace-nowrap pb-[3px] text-[12.5px] font-semibold sm:text-[13.5px]"
             style={{
               color: c === code ? "var(--oasis-text)" : "var(--oasis-text-muted)",
               borderBottom: c === code ? "2px solid var(--oasis-home)" : "2px solid transparent",
@@ -49,7 +40,7 @@ export default async function LeaguePage({ params }: { params: Promise<{ code: s
             {LEAGUE_NAMES[c]}
           </Link>
         ))}
-        <span className="ml-auto font-mono text-[11.5px] font-medium text-[var(--oasis-text-muted)]">
+        <span className="ml-auto hidden font-mono text-[11.5px] font-medium text-[var(--oasis-text-muted)] md:block">
           season 2026/27
         </span>
       </div>
@@ -68,20 +59,20 @@ export default async function LeaguePage({ params }: { params: Promise<{ code: s
         </div>
       ) : (
         <>
-          <div className="flex items-center gap-[9px] border-b border-[var(--oasis-border)] px-[22px] py-[11px]">
+          <div className="flex flex-wrap items-center gap-[9px] border-b border-[var(--oasis-border)] px-4 py-[11px] sm:px-[22px]">
             {round && (
               <span className="rounded-[6px] border border-[var(--oasis-border-strong)] bg-[var(--oasis-surface-raised)] px-[11px] py-[6px] text-[12px] font-semibold">
                 {round}
               </span>
             )}
             <span className="ml-auto font-mono text-[11.5px] font-medium text-[var(--oasis-text-dim)]">
-              {LEAGUE_NAMES[code]} · model {MODEL_VERSION}
+              {LEAGUE_NAMES[code]} · model {live.model_versions[code]}
             </span>
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-[1.3fr_1fr]">
-            <div className="flex flex-col gap-3 border-b border-[var(--oasis-border)] p-5 px-[20px] lg:border-b-0 lg:border-r">
-              <div className="flex items-center justify-between font-mono text-[10.5px] font-semibold tracking-[0.1em] text-[var(--oasis-text-dim)]">
+            <div className="flex flex-col gap-3 border-b border-[var(--oasis-border)] p-4 sm:p-5 sm:px-[20px] lg:border-b-0 lg:border-r">
+              <div className="flex flex-wrap items-center justify-between gap-2 font-mono text-[10px] font-semibold tracking-[0.1em] text-[var(--oasis-text-dim)] sm:text-[10.5px]">
                 <span>FIXTURES &amp; PREDICTIONS — {LEAGUE_NAMES[code]}</span>
                 <ProbabilityLegend />
               </div>
@@ -89,21 +80,26 @@ export default async function LeaguePage({ params }: { params: Promise<{ code: s
                 <Link
                   key={m.id}
                   href={`/match/${m.id}`}
-                  className="flex items-center gap-[14px] rounded-[10px] border border-[var(--oasis-border)] bg-[var(--oasis-surface)] p-[13px] transition-colors hover:border-[var(--oasis-border-strong)]"
+                  className="flex flex-col gap-[10px] rounded-[10px] border border-[var(--oasis-border)] bg-[var(--oasis-surface)] p-[13px] transition-colors hover:border-[var(--oasis-border-strong)] sm:flex-row sm:items-center sm:gap-[14px]"
                 >
-                  <span className="flex w-[250px] flex-col gap-[3px]">
-                    <span className="text-[15px] font-bold tracking-[-0.01em]">
+                  <span className="flex flex-col gap-[3px] sm:w-[250px]">
+                    <span className="text-[15px] font-bold tracking-[-0.01em] sm:text-[16.5px]">
                       {m.home} <span className="font-medium text-[var(--oasis-text-faint)]">v</span> {m.away}
                     </span>
                     <span
-                      className="font-mono text-[11.5px] font-medium"
+                      className="font-mono text-[11px] font-medium sm:text-[12.5px]"
                       style={{ color: m.statusConfirmed ? "var(--oasis-positive)" : "var(--oasis-text-muted)" }}
                     >
                       {m.ko} UTC · {m.st}
                     </span>
                   </span>
-                  <ProbabilityBar home={m.h} draw={m.d} away={m.a} height={22} labeled className="flex-1" />
-                  <span className="w-[52px] text-right font-mono text-[13.5px] font-medium">{m.score}</span>
+                  <ProbabilityBar home={m.h} draw={m.d} away={m.a} height={24} labeled className="w-full sm:max-w-[420px]" />
+                  <span className="flex items-baseline gap-2 sm:w-[64px] sm:flex-col sm:items-end sm:gap-0">
+                    <span className="font-mono text-[13px] font-medium sm:text-[13.5px]">{m.condScore}</span>
+                    <span className="font-mono text-[10px] font-medium text-[var(--oasis-text-dim)]">
+                      {Math.round(m.condPct)}%
+                    </span>
+                  </span>
                 </Link>
               ))}
               {fixtures.length === 0 && (
@@ -114,11 +110,11 @@ export default async function LeaguePage({ params }: { params: Promise<{ code: s
 
               <div className="mt-1 rounded-[10px] border border-[var(--oasis-border)] bg-[var(--oasis-surface)] p-[14px]">
                 <div className="font-mono text-[10px] font-semibold tracking-[0.1em] text-[var(--oasis-text-dim)]">
-                  BACKTEST RECORD — {HEADLINE.season.toUpperCase()}
+                  BACKTEST RECORD — {live.headline.season.toUpperCase()}
                 </div>
                 <div className="mt-[5px] font-mono text-[12px] font-medium leading-[1.8] text-[var(--oasis-text-muted)]">
-                  {HEADLINE.n_test} matches · log loss {HEADLINE.log_loss.toFixed(3)} · accuracy{" "}
-                  {HEADLINE.accuracy.toFixed(1)}% · RPS {HEADLINE.rps.toFixed(3)}
+                  {live.headline.n_test} matches · log loss {live.headline.log_loss.toFixed(3)} · accuracy{" "}
+                  {live.headline.accuracy.toFixed(1)}% · RPS {live.headline.rps.toFixed(3)}
                 </div>
                 <Link href="/performance" className="mt-1 inline-block text-[11.5px] font-bold text-[var(--oasis-home)]">
                   Open full ledger →
@@ -126,7 +122,7 @@ export default async function LeaguePage({ params }: { params: Promise<{ code: s
               </div>
             </div>
 
-            <div className="flex flex-col gap-3 p-5 px-[20px]">
+            <div className="flex flex-col gap-3 p-4 sm:p-5 sm:px-[20px]">
               <div className="font-mono text-[10px] font-semibold tracking-[0.1em] text-[var(--oasis-text-dim)]">
                 STANDINGS
               </div>
@@ -161,7 +157,7 @@ export default async function LeaguePage({ params }: { params: Promise<{ code: s
               <div className="mt-1 font-mono text-[10px] font-semibold tracking-[0.1em] text-[var(--oasis-text-dim)]">
                 {LEAGUE_NAMES[code].toUpperCase()} MODEL RECORD
               </div>
-              <div className="flex gap-[22px] rounded-[10px] border border-[var(--oasis-border)] bg-[var(--oasis-surface)] p-[14px]">
+              <div className="flex flex-wrap gap-[18px] rounded-[10px] border border-[var(--oasis-border)] bg-[var(--oasis-surface)] p-[14px] sm:gap-[22px]">
                 <Stat label="LOG LOSS" value={perf.ll} />
                 <Stat label="vs BASELINE" value={perf.base} color="var(--oasis-positive)" />
                 <Stat label="vs MARKET" value={perf.mkt} />
@@ -182,7 +178,7 @@ function Stat({ label, value, color }: { label: string; value: string; color?: s
   return (
     <div>
       <div className="font-mono text-[10px] font-semibold tracking-[0.09em] text-[var(--oasis-text-dim)]">{label}</div>
-      <div className="font-mono text-[21px] font-medium" style={{ color }}>
+      <div className="font-mono text-[18px] font-medium sm:text-[21px]" style={{ color }}>
         {value}
       </div>
     </div>

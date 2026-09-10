@@ -19,6 +19,15 @@ REST_CAP_DAYS = 14.0
 # understates true congestion for teams in Europe (PRD 10.5 caveat).
 CONGESTION_WINDOW_DAYS = 21
 
+# Closed-door COVID window (approximate, all leagues): a measured collapse
+# of home advantage sits inside the training years -- flagging it removes a
+# known bias from ~10% of training rows (Leitner 2023; Arrondel 2024).
+GHOST_START = "2020-03-08"
+GHOST_END = "2021-06-30"
+
+VENUE_FORM_WINDOW = 5  # PRD 10.2: home-only / away-only form over last 5 venue matches
+SCHED_STRENGTH_WINDOW = 10  # opponents considered for schedule strength
+
 DRAW_WINDOW = 20  # draws are ~23% base rate; a 10-match window is too noisy (0-4 draws)
 COLD_DRAW_RATE = 0.23  # PL base draw rate, per team
 COLD_LOW_SCORING_RATE = 0.45  # PL under-2.5 base rate, per team
@@ -57,6 +66,46 @@ def _result_points(goals_for: int, goals_against: int) -> int:
     return 0
 
 
+class LeagueContext:
+    """Point-in-time league-level covariates (Hubacek et al. 2019, sec 4.6):
+    rolling home-win rate, draw rate, average home/away goals, and team count
+    for the league a match belongs to. These generalise across divisions --
+    the block that made pooled training beat per-league in the only published
+    head-to-head. Update AFTER reading features for a match (like Elo)."""
+
+    WINDOW = 760  # ~2 seasons of a 20-team league
+
+    COLD = {"lg_hw_rate": 0.45, "lg_draw_rate": 0.25, "lg_goals_h": 1.5, "lg_goals_a": 1.2, "lg_n_teams": 20.0}
+
+    def __init__(self):
+        from collections import deque
+        self._hist = defaultdict(lambda: deque(maxlen=self.WINDOW))
+        self._season_teams = defaultdict(set)
+
+    def features(self, league_id: int) -> dict:
+        hist = self._hist.get(league_id)
+        if not hist or len(hist) < 50:
+            return dict(self.COLD)
+        n = len(hist)
+        hw = sum(1 for hg, ag in hist if hg > ag) / n
+        dr = sum(1 for hg, ag in hist if hg == ag) / n
+        gh = sum(hg for hg, _ in hist) / n
+        ga = sum(ag for _, ag in hist) / n
+        return {"lg_hw_rate": hw, "lg_draw_rate": dr, "lg_goals_h": gh, "lg_goals_a": ga,
+                "lg_n_teams": float(len(self._season_teams.get(league_id, [])) or 20)}
+
+    def update(self, league_id: int, season: int, home_id: int, away_id: int, hg: int, ag: int) -> None:
+        self._hist[league_id].append((hg, ag))
+        key = league_id
+        # reset the roster set at a season boundary
+        if getattr(self, "_season_of", None) is None:
+            self._season_of = {}
+        if self._season_of.get(key) != season:
+            self._season_of[key] = season
+            self._season_teams[key] = set()
+        self._season_teams[key].update((home_id, away_id))
+
+
 class FeatureStore:
     """Point-in-time feature store, keyed by team_id. `before` cutoffs are
     strict (< before), so no future match ever leaks into a form/h2h window."""
@@ -72,10 +121,10 @@ class FeatureStore:
             date = match["kickoff_utc"]
 
             self._team_matches[home_id].append(
-                {"date": date, "goals_for": hg, "goals_against": ag}
+                {"date": date, "goals_for": hg, "goals_against": ag, "at_home": True, "opponent_id": away_id}
             )
             self._team_matches[away_id].append(
-                {"date": date, "goals_for": ag, "goals_against": hg}
+                {"date": date, "goals_for": ag, "goals_against": hg, "at_home": False, "opponent_id": home_id}
             )
             self._h2h[frozenset((home_id, away_id))].append(
                 {"date": date, "home_team_id": home_id, "away_team_id": away_id, "home_goals": hg, "away_goals": ag}
@@ -125,6 +174,30 @@ class FeatureStore:
         congestion = sum(1 for m in history if m["date"] >= cutoff)
         return rest_days, congestion
 
+    def venue_form(self, team_id: int, before, at_home: bool, window: int = VENUE_FORM_WINDOW) -> float:
+        """Points per game over the team's last `window` matches AT THIS VENUE
+        (home matches for the home side, away matches for the away side).
+        Cold start returns the neutral overall-form constant."""
+        history = [
+            m for m in self._team_matches.get(team_id, []) if m["date"] < before and m["at_home"] == at_home
+        ]
+        recent = history[-window:]
+        if not recent:
+            return _COLD_FORM.points_per_game
+        return sum(_result_points(m["goals_for"], m["goals_against"]) for m in recent) / len(recent)
+
+    def schedule_strength(self, team_id: int, before, elo: "elo_module.EloRatings", window: int = SCHED_STRENGTH_WINDOW) -> float:
+        """Mean CURRENT Elo of the opponents faced in the last `window`
+        matches -- distinguishes a good run against weak sides from one
+        against strong sides. Uses opponents' present ratings (still
+        point-in-time safe: at feature time the Elo store contains only past
+        matches). Cold start is league-neutral INITIAL_ELO."""
+        history = [m for m in self._team_matches.get(team_id, []) if m["date"] < before]
+        recent = history[-window:]
+        if not recent:
+            return elo_module.INITIAL_ELO
+        return sum(elo.get(m["opponent_id"]) for m in recent) / len(recent)
+
     def draw_rate(self, team_id: int, before, window: int = DRAW_WINDOW) -> float:
         f = self.form(team_id, before, window)
         if f.played == 0:
@@ -172,6 +245,10 @@ class FeatureStore:
 
         home_adv = 0 if neutral else elo_module.HOME_ADVANTAGE
         elo_diff = elo.get(home_id) + home_adv - elo.get(away_id)
+        before_str = before.isoformat() if hasattr(before, "isoformat") else str(before)
+        ghost = 1.0 if GHOST_START <= before_str[:10] <= GHOST_END else 0.0
+        h10 = self.ew_form(home_id, before, half_life=10)
+        a10 = self.ew_form(away_id, before, half_life=10)
         return {
             "elo_diff": elo_diff,
             "form_diff": hf.points_per_game - af.points_per_game,
@@ -192,4 +269,25 @@ class FeatureStore:
             # cancel the signal.
             "draw_rate_sum": self.draw_rate(home_id, before) + self.draw_rate(away_id, before),
             "low_scoring_sum": self.low_scoring_rate(home_id, before) + self.low_scoring_rate(away_id, before),
+            # Venue-split form (PRD 10.2): the home side's home record vs the
+            # away side's away record -- overall form hides strong-at-home /
+            # weak-on-the-road asymmetries.
+            "venue_form_diff": self.venue_form(home_id, before, True) - self.venue_form(away_id, before, False),
+            # Elo momentum (PRD 10.1 "Elo change"): improving vs declining,
+            # which the rating LEVEL already in elo_diff cannot express.
+            "elo_trend_diff": elo.trend(home_id) - elo.trend(away_id),
+            # Strength of recent schedule: same form against tougher opponents
+            # should count for more.
+            "sched_strength_diff": self.schedule_strength(home_id, before, elo)
+            - self.schedule_strength(away_id, before, elo),
+            # Batch B (literature review): closed-door flag, threshold-coded
+            # rest (the effect is a step at <=2 / >=4 days, not a slope), and
+            # a longer EW half-life variant (5 matches is the extreme short
+            # end of everything published).
+            "ghost_game": ghost,
+            "short_rest_diff": float(h_rest <= 2.0) - float(a_rest <= 2.0),
+            "long_rest_diff": float(h_rest >= 4.0) - float(a_rest >= 4.0),
+            "ew10_form_diff": h10[0] - a10[0],
+            "ew10_gf_diff": h10[1] - a10[1],
+            "ew10_ga_diff": h10[2] - a10[2],
         }

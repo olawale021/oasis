@@ -214,6 +214,44 @@ release for its role (byte-for-byte checksum match), and every
 `predictions.json` payload carries a `model_registry` block with the exact
 version + sha256 it was generated from (PRD 17.4 traceability).
 
+## Production refold (PRD 12.2 -- the *_live serving track)
+
+```bash
+python3 src/refold_live.py   # refit frozen methodology through 2025/26
+```
+
+Two parallel artifact tracks per league. The EVALUATION track
+(`outcome_model_{code}.json`) is fit through 2024/25 with 2025/26 held out —
+it is what every backtest number on the performance page comes from, and it
+is never refit past that boundary. The LIVE track
+(`outcome_model_{code}_live.json`, versions `*_r26`) refits the exact same
+frozen methodology (features, decay, blend weights — all harness-selected)
+through 2025/26 for serving 2026/27 predictions; it has no held-out season
+by design, and the live locked ledger is its evaluation. `predict.py` and
+the match-page factors serve the live track when it exists; match/league
+pages show the serving version, the performance page shows the evaluation
+versions. Re-run `refold_live.py` after any methodology change ships on the
+evaluation track.
+
+## Lock & settle (PRD 13.4/13.5 -- run the matchday chain hourly)
+
+```bash
+python3 src/predict.py && python3 src/lifecycle.py lock     # freeze fixtures kicking off within 30 min
+python3 src/ingest_fixtures.py --seasons 2026 --force-refresh && python3 src/lifecycle.py settle
+python3 src/lifecycle.py status
+```
+
+`locked_predictions` is the immutable public track record: one row per
+fixture, frozen at lock time with probabilities, features, market snapshot,
+and the registered model version + checksum; settlement fills the
+result/scoring columns exactly once. Re-runs are no-ops (verified). Settled
+live rows appear at the top of the web ledger tagged `· live`, and the
+performance-page header switches to the live record as it accumulates.
+Matchday cron chain (odds -> results -> predict -> lock -> settle -> export)
+is in `src/lifecycle.py`'s docstring. Settlement feeds ratings/features for
+the NEXT matchday automatically; it never silently retrains models -- refits
+are explicit, harness-validated, and registered as new versions.
+
 ## Web export (real data, no mocks)
 
 ```bash
@@ -237,13 +275,108 @@ explicitly labelled a backtest until live predictions lock.
 
 ## Status
 
-Built: Phase 0 (coverage audit), Phase 1 (PL+Championship ingestion, Elo,
-outcome/goals baselines, chronological backtest+calibration, evaluation
-report), PL feature enrichment (shot stats, injuries, lineups), and a web
-frontend in `web/` running entirely on real exported pipeline data (see "Web
-export" above), odds snapshot collection (live since 2026-08-20, PL
-matchweek 1), and the model registry — all Premier League only. Not yet
-built: La Liga/Serie A/Bundesliga/MLS, auth/payments/entitlements,
-any Cloudflare (D1/R2) or Convex integration. Storage is local-only (SQLite +
+Built: Phase 0 (coverage audit), Phase 1 (PL model + feature enrichment),
+Phase 2 first pass (2026-08-20): ten seasons of fixtures ingested for all 5
+target leagues + 4 feeder divisions, injuries for all targets, per-league
+outcome + goals models trained/calibrated/registered (train through 2022,
+validate 2023, calibrate 2024, test 2025), odds snapshot collection live for
+all 5 leagues, model registry with serving-time enforcement, and the web
+frontend running entirely on real exported multi-league data.
+
+Per-league training scripts: `--league pl|lal|sea|bun|mls` on
+`outcome_train.py` / `goals_train.py` / `evaluate_report.py`. Non-PL leagues
+train on the fixtures+injuries feature ladder until their shot-stat/lineup
+enrichment is ingested (the ladder auto-upgrades when the data lands in the
+DB — `outcome_train.py` detects it per league).
+
+`evaluate_report.py` reports, per league: log loss / Brier / RPS / accuracy /
+balanced accuracy against uniform, empirical-frequency, majority-class
+(accuracy-only), calibrated Elo-only, and Dixon-Coles baselines; a
+calibration slope/intercept fit (target 1.0 / 0.0) alongside binned ECE; a
+confusion matrix; and paired-bootstrap 95% CIs on the log-loss delta vs the
+frequency and Elo-only baselines. Selection policy (stamped in every
+report): models are chosen on out-of-sample log loss with calibration
+required — accuracy metrics are context only, never a selection criterion.
+
+New all-league features (2026-08-20, fixtures-only construction, no API
+cost): venue-split form (last 5 home matches vs last 5 away matches), Elo
+trend (rating change over last 6 matches, promotion adjustments excluded),
+and schedule strength (mean current Elo of last 10 opponents). All three
+went through the per-league walk-forward harness (`rolling_backtest.py
+--league <code>`, now league-generalized with enrichment-aware candidate
+rows). Harness-endorsed ships: PL logistic14_new3 (mean 5-fold log-loss
+0.9790 vs 0.9843 prior — schedule strength is the main driver), SEA + BUN
+logistic11_new3, MLS logistic7_base (injuries feature dropped — not real
+there), LAL logistic9 (none of the new features proved real; the single-split
+picks were noise).
+
+Elo warm-up (2026-08-20): 2010-2016 fixtures ingested for all 9 leagues
+(17,962 fixtures; MLS exists from 2012) as replay-only history —
+`HISTORY_START = 2010` in backtest_common; the scored train/validate/
+calibrate/test seasons are unchanged, so ratings/venue-form/h2h enter 2017
+already converged instead of cold-starting at 1500. The harness endorsed it
+everywhere except MLS (old MLS is structurally different; ~flat): best-mean
+log loss PL 0.9790 -> 0.9762, LAL 0.9871 -> 0.9847, SEA 0.9956 -> 0.9873,
+BUN 1.0015 -> 0.9932. Cross-run comparisons are indicative, not exact —
+warm-up makes a few returning teams sample-eligible earlier in early folds
+(within-run decisions are clean, and the elo_only control row improving too
+confirms the warm ratings themselves).
+
+Global model + blend (PRD 9.2/9.4, 2026-08-20): `global_train.py` pools all
+five leagues into one 15-feature logistic (common fixtures+injuries features
+plus league-identity dummies, PL as reference) and blends it with each
+league's deployed model: p = w x league + (1-w) x global. The blend weight is
+selected on the 5-fold harness MEAN over a fixed-w grid — never on one
+calibrate season (the single-season protocol degenerated to w=1.0 wrappers
+and was scrapped). Verdict: the blend is endorsed in ALL five leagues, with
+weights near the PRD's 60/40 hypothesis (PL 0.60, LAL 0.65, SEA 0.45, BUN
+0.45, MLS 0.75). Deployed as self-contained blend artifacts
+(`blend60_global` etc.); harness means (vs elo-only): PL 0.9740/0.9811,
+LAL 0.9833/0.9850, SEA 0.9850/0.9879, BUN 0.9912/0.9947, MLS 1.0469/1.0533 —
+every league now clears Elo-only. Caveats, recorded not hidden: w is one
+parameter tuned on the same folds that endorse the blend (mildly optimistic,
+same class of choice as the decay grid); and season-indexed pooling means the
+global fit contains other-league matches wall-clock concurrent with a
+league's test window (no feature crosses leagues; the only path is global
+coefficients seeing contemporaneous other-league results). Enrichment
+ingestion for SEA/BUN/MLS (~20.5k calls, ~3 daily quotas) runs via
+`python3 src/enrich_backlog.py` once a day until it prints "backlog
+complete" — after which both the league models and the global model get a
+richer common feature set and the whole ladder re-runs.
+
+Literature batch (2026-08-21, see the feature/algorithm review): learned
+rating features (pi-ratings + Berrar ratings in `ratings.py`, params fitted
+on the 2010-2016 warm-up years only — outside every fold; note the Berrar
+defense-update sign in some summaries is a divergent positive-feedback loop
+and is corrected here), a closed-door COVID flag, threshold-coded rest,
+EW half-life-10 variants, minus-h2h parsimony rungs, and rho shrinkage
+(|rho| must clear 2·SE; PL and LAL now at exact independence, BUN keeps its
+genuinely significant -0.129 — matching Petretta 2025 exactly). Harness
+verdicts vs the frozen 2026-08-21 baseline (5-fold blend means): PL 0.9740
+(tie — full_kitchen "won" by 0.0001, parsimony kept logistic14_new3), LAL
+0.9833 -> 0.9822 (full_kitchen), BUN 0.9912 -> 0.9877 (full_ratings, on
+completed enrichment), MLS 1.0469 -> 1.0464 (base_minus_h2h — the
+literature's drop-h2h claim validated), SEA held: partial enrichment
+(2 of 9 seasons) contaminated its ladder run — re-evaluate after the
+backlog completes. All five leagues clear Elo-only by 0.003-0.007.
+Honest read: the literature's headline rating-feature gain (-0.007 to
+-0.0105 RPS) did not fully materialize here because our recency block was
+already warm-started, EW-weighted, venue-split and schedule-adjusted — the
+ratings' marginal value is real (BUN) but smaller on an already-strong base.
+
+Prior per-league state vs the Elo-only baseline (warm harness means): PL
+0.9762 vs 0.9811; LAL 0.9847 vs 0.9850; SEA 0.9873 vs 0.9879 (ahead for the
+first time — schedule strength did it); BUN 0.9932 vs 0.9947; MLS 1.0475 vs
+1.0533. All five leagues now lead Elo-only on the harness mean. Single-test-
+season bootstrap CIs still straddle zero for all leagues — deltas of this
+size need multi-fold evidence, which is exactly what the harness provides.
+Noted for later: LAL's top harness row is actually blend_draw_dc (0.9842,
++0.0005 over the shipped logistic9) — below noise and blend_train.py is not
+league-generalized yet, so no blend ships; revisit if the gap grows.
+
+Not yet built: fixture-statistics/lineup ingestion for non-PL leagues
+(quota-bounded, ~2 days of Pro quota), the global model + per-league blend
+(PRD 9.2/9.4), auth/payments/entitlements, any Cloudflare (D1/R2) or Convex
+integration. Storage is local-only (SQLite +
 flat JSON) until the model proves out further and a live app is actually
 being deployed.

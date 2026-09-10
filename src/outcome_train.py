@@ -8,6 +8,7 @@ import backtest_common
 import config
 import db
 import elo as elo_module
+import leagues
 import matches as matches_module
 import metrics
 import model_registry
@@ -38,6 +39,53 @@ FOURTEEN_KS = ELEVEN_EW + ["corner_diff", "xg_diff", "xga_diff"]
 TWELVE_CLOSE = ELEVEN_SCHED + ["elo_closeness"]
 FOURTEEN_DRAW = ELEVEN_SCHED + ["elo_closeness", "draw_rate_sum", "low_scoring_sum"]
 
+# Fixtures+injuries-only ladder for leagues without shot-stat/lineup
+# enrichment ingested yet (everything here derives from fixtures/results
+# plus the /injuries feed).
+BASE_FIVE = ["elo_diff", "ew_form_diff", "h2h_signal", "ew_gf_diff", "ew_ga_diff"]
+BASE_SEVEN = BASE_FIVE + ["rest_diff", "congestion_diff"]
+BASE_EIGHT = BASE_SEVEN + ["missing_players_diff"]
+# New all-league features (fixtures-only construction): venue-split form,
+# Elo momentum, schedule strength.
+NEW3 = ["venue_form_diff", "elo_trend_diff", "sched_strength_diff"]
+
+# Literature batch A: learned rating features (pi + Berrar) -- the largest
+# documented gain in the field is these replacing recency aggregates.
+RATING3 = ["pi_pred_gd", "ber_gh", "ber_ga"]
+# Literature batch B: closed-door flag, threshold rest, longer EW window.
+GHOST = ["ghost_game"]
+RESTBINS = ["short_rest_diff", "long_rest_diff"]
+EW_TRIO = ["ew_form_diff", "ew_gf_diff", "ew_ga_diff"]
+EW10_TRIO = ["ew10_form_diff", "ew10_gf_diff", "ew10_ga_diff"]
+# The literature's "ratings replace recency" thesis, as a compact set.
+RATINGS_CORE = ["elo_diff", "pi_pred_gd", "ber_gh", "ber_ga",
+                "rest_diff", "congestion_diff", "missing_players_diff", "sched_strength_diff"]
+
+
+def _swap(feats, old, new):
+    return [f for f in feats if f not in old] + new
+
+
+def _minus(feats, drop):
+    return [f for f in feats if f != drop]
+
+BASE_CANDIDATES = [
+    ("logistic5_base", BASE_FIVE),
+    ("logistic7_base", BASE_SEVEN),
+    ("logistic8_inj", BASE_EIGHT),
+    ("logistic9_venue", BASE_EIGHT + ["venue_form_diff"]),
+    ("logistic9_trend", BASE_EIGHT + ["elo_trend_diff"]),
+    ("logistic9_schedstr", BASE_EIGHT + ["sched_strength_diff"]),
+    ("logistic11_new3", BASE_EIGHT + NEW3),
+    ("base_ratings", BASE_EIGHT + RATING3),
+    ("base_minus_h2h", _minus(BASE_EIGHT, "h2h_signal")),
+    ("base_ghost", BASE_EIGHT + GHOST),
+    ("base_restbins", BASE_EIGHT + RESTBINS),
+    ("base_ew10", _swap(BASE_EIGHT, EW_TRIO, EW10_TRIO)),
+    ("ratings_core", RATINGS_CORE),
+    ("base_kitchen", BASE_EIGHT + NEW3 + RATING3 + GHOST),
+]
+
 CANDIDATES = [
     ("logistic9", NINE),  # incumbent / control
     ("logistic11_sched", ELEVEN_SCHED),
@@ -47,6 +95,21 @@ CANDIDATES = [
     ("logistic14_ks", FOURTEEN_KS),
     ("logistic12_close", TWELVE_CLOSE),
     ("logistic14_draw", FOURTEEN_DRAW),
+]
+
+# Appended after NEW3 exists (list built above CANDIDATES for the base ladder).
+CANDIDATES += [
+    ("logistic12_venue", ELEVEN_EW + ["venue_form_diff"]),
+    ("logistic12_trend", ELEVEN_EW + ["elo_trend_diff"]),
+    ("logistic12_schedstr", ELEVEN_EW + ["sched_strength_diff"]),
+    ("logistic14_new3", ELEVEN_EW + NEW3),
+    ("full_ratings", ELEVEN_EW + RATING3),
+    ("full_minus_h2h", _minus(ELEVEN_EW, "h2h_signal")),
+    ("full_ghost", ELEVEN_EW + GHOST),
+    ("full_restbins", ELEVEN_EW + RESTBINS),
+    ("full_ew10", _swap(ELEVEN_EW, EW_TRIO, EW10_TRIO)),
+    ("ratings_core", RATINGS_CORE),
+    ("full_kitchen", ELEVEN_EW + NEW3 + RATING3 + GHOST),
 ]
 
 DECAY_GRID = [None, 0.9, 0.8, 0.7]  # None = unweighted control; PRD 8.3 target is 0.8
@@ -120,6 +183,64 @@ def calibrate_temperature(base_artifact: dict, calibrate_samples: list) -> tuple
     return best_T, best_ll
 
 
+def _weighted_ll(samples, artifact, weights):
+    total = w_total = 0.0
+    for s, w in zip(samples, weights):
+        p = outcome_model.predict_proba(s, artifact)
+        total += w * -math.log(max(p[s["cls"]], 1e-15))
+        w_total += w
+    return total / w_total
+
+
+def _fit_scalar_params(fit_samples, weights, make_artifact, grids, rounds=3):
+    """Cyclic coordinate search with grid refinement -- pure python, enough
+    for 3-4 parameter challengers."""
+    params = {k: g[len(g) // 2] for k, g in grids.items()}
+    for _ in range(rounds):
+        for k, g in grids.items():
+            best_v, best_ll = params[k], float("inf")
+            for v in g:
+                trial = dict(params)
+                trial[k] = v
+                ll = _weighted_ll(fit_samples, make_artifact(trial), weights)
+                if ll < best_ll:
+                    best_ll, best_v = ll, v
+            params[k] = best_v
+            span = (g[-1] - g[0]) / (len(g) - 1)
+            grids[k] = [best_v + span * f for f in (-0.75, -0.375, 0.0, 0.375, 0.75)]
+    return params
+
+
+def build_ordered_artifact(feat: str, buckets: dict, decay=None) -> dict:
+    fit = buckets["train"] + buckets["validate"] + buckets["calibrate"]
+    w = season_weights(fit, decay)
+    weights = [1.0] * len(fit) if w is None else list(w)
+    scale = max(1e-9, float(np.std([s[feat] for s in fit])))
+    grids = {
+        "beta": [i / (10.0 * scale) for i in range(1, 21)],
+        "c1": [-1.5 + 0.15 * i for i in range(11)],
+        "c2": [-0.3 + 0.15 * i for i in range(11)],
+    }
+    params = _fit_scalar_params(fit, weights, lambda pr: {"type": "ordered_logit", "feat": feat, **pr}, grids)
+    if params["c1"] > params["c2"]:
+        params["c1"], params["c2"] = params["c2"], params["c1"]
+    return {"type": "ordered_logit", "feat": feat, **params}
+
+
+def build_davidson_artifact(feat: str, buckets: dict, decay=None) -> dict:
+    fit = buckets["train"] + buckets["validate"] + buckets["calibrate"]
+    w = season_weights(fit, decay)
+    weights = [1.0] * len(fit) if w is None else list(w)
+    scale = max(1e-9, float(np.std([s[feat] for s in fit])))
+    grids = {
+        "beta": [i / (10.0 * scale) for i in range(1, 21)],
+        "h": [-0.2 + 0.08 * i for i in range(11)],
+        "nu": [0.4 + 0.08 * i for i in range(11)],
+    }
+    params = _fit_scalar_params(fit, weights, lambda pr: {"type": "davidson", "feat": feat, **pr}, grids)
+    return {"type": "davidson", "feat": feat, **params}
+
+
 def build_artifact(feats: list, buckets: dict, decay=None) -> dict:
     """The full ship protocol minus test scoring/writing: fit on
     train+validate+calibrate with decay weights, temperature-scale on
@@ -146,21 +267,27 @@ def build_artifact(feats: list, buckets: dict, decay=None) -> dict:
     return artifact
 
 
-def load_enriched_buckets():
+def load_enriched_buckets(league_cfg: dict = None, score_feeders: bool = False):
+    league_cfg = league_cfg or leagues.target_config("pl")
+    target_id, feeder_id = league_cfg["league_id"], league_cfg["feeder_id"]
     conn = db.get_connection()
-    matches = matches_module.load_matches(conn, [backtest_common.PL_ID, backtest_common.CHAMP_ID])
-    transitions = promotion.compute_transitions(
-        conn, backtest_common.PL_ID, backtest_common.CHAMP_ID, backtest_common.ALL_SEASONS
+    league_ids = [target_id] + ([feeder_id] if feeder_id else [])
+    matches = matches_module.load_matches(conn, league_ids)
+    transitions = (
+        promotion.compute_transitions(conn, target_id, feeder_id, backtest_common.ALL_SEASONS)
+        if feeder_id
+        else {}
     )
-    samples = backtest_common.collect_samples(matches, transitions, use_mov=True)
-    samples = richer_features.enrich_samples(samples, conn)
+    samples = backtest_common.collect_samples(matches, transitions, use_mov=True, target_league_id=target_id, score_feeders=score_feeders)
+    samples = richer_features.enrich_samples(samples, conn, league_id=target_id)
     return conn, samples
 
 
 def main() -> None:
     import argparse
 
-    parser = argparse.ArgumentParser(description="Train and ship the PL outcome model.")
+    parser = argparse.ArgumentParser(description="Train and ship a league outcome model.")
+    parser.add_argument("--league", type=str, default="pl", help=f"League code: {list(leagues.TARGETS)}")
     parser.add_argument(
         "--ship",
         type=str,
@@ -172,11 +299,32 @@ def main() -> None:
     parser.add_argument("--decay", type=str, default=None, help='Decay override, e.g. "0.8" or "none"')
     args = parser.parse_args()
 
-    conn, samples = load_enriched_buckets()
+    league_cfg = leagues.target_config(args.league)
+
+    conn, samples = load_enriched_buckets(league_cfg)
     buckets = backtest_common.split_by_season(samples)
     backtest_common.verify_no_leakage(buckets)
 
-    candidates_by_name = dict(CANDIDATES)
+    # The full ladder needs shot-stat + lineup enrichment ingested for this
+    # league; without it those columns are all-zero and the wider rungs are
+    # meaningless, so fall back to the fixtures+injuries ladder.
+    target_id = league_cfg["league_id"]
+    n_stats = conn.execute(
+        "SELECT COUNT(*) FROM fixture_statistics fs JOIN fixtures f ON f.fixture_id = fs.fixture_id"
+        " WHERE f.league_id = ?",
+        (target_id,),
+    ).fetchone()[0]
+    n_lineups = conn.execute(
+        "SELECT COUNT(*) FROM lineup_players lp JOIN fixtures f ON f.fixture_id = lp.fixture_id"
+        " WHERE f.league_id = ?",
+        (target_id,),
+    ).fetchone()[0]
+    enriched = n_stats > 1000 and n_lineups > 1000
+    print(f"enrichment: {n_stats} stat rows, {n_lineups} lineup-player rows -> {'full' if enriched else 'base'} ladder")
+
+    candidates = CANDIDATES if enriched else BASE_CANDIDATES
+    decay_probe_feats = NINE if enriched else BASE_SEVEN
+    candidates_by_name = dict(candidates)
 
     if args.ship:
         if args.ship not in candidates_by_name:
@@ -193,7 +341,7 @@ def main() -> None:
         # as the no-decay control).
         decay_results = []
         for decay in DECAY_GRID:
-            ll = evaluate_candidate(NINE, buckets["train"], buckets["validate"], decay=decay)
+            ll = evaluate_candidate(decay_probe_feats, buckets["train"], buckets["validate"], decay=decay)
             decay_results.append((decay, ll))
             print(f"decay grid: decay={decay} validate_log_loss={ll:.4f}")
         best_decay, _ = min(decay_results, key=lambda r: r[1])
@@ -201,7 +349,7 @@ def main() -> None:
 
         # Stage 2: feature ladder at the selected decay.
         results = []
-        for name, feats in CANDIDATES:
+        for name, feats in candidates:
             ll = evaluate_candidate(feats, buckets["train"], buckets["validate"], decay=best_decay)
             results.append((name, feats, ll))
             print(f"validate log_loss: {name}={ll:.4f}")
@@ -230,7 +378,7 @@ def main() -> None:
     )
 
     config.MODELS_DIR.mkdir(parents=True, exist_ok=True)
-    out_path = config.MODELS_DIR / "outcome_model_pl.json"
+    out_path = config.MODELS_DIR / league_cfg["outcome_artifact"]
     out_path.write_text(json.dumps(artifact, indent=2))
     entry = model_registry.register(out_path, deployed=True)
     print(

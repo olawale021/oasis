@@ -1,13 +1,14 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { HEADLINE, LEAGUE_CODES, LEAGUE_NAMES, LEDGER, MODEL_VERSION } from "@/lib/data";
+import { LEAGUE_CODES, LEAGUE_NAMES } from "@/lib/data";
+import type { LiveData } from "@/lib/data";
 import type { LeagueFilter } from "@/lib/types";
 
-export function PerformanceLedger() {
+export function PerformanceLedger({ live }: { live: LiveData }) {
   const [league, setLeague] = useState<LeagueFilter>("ALL");
 
-  const rows = useMemo(() => LEDGER.filter((r) => league === "ALL" || r.lg === league), [league]);
+  const rows = useMemo(() => live.ledger.filter((r) => league === "ALL" || r.lg === league), [league, live.ledger]);
 
   return (
     <div className="flex flex-col gap-3">
@@ -31,16 +32,15 @@ export function PerformanceLedger() {
           );
         })}
         <span className="rounded-[6px] border border-[var(--oasis-border)] px-[11px] py-[6px] text-[12px] font-semibold text-[var(--oasis-text-muted)]">
-          {HEADLINE.season}
-        </span>
-        <span className="rounded-[6px] border border-[var(--oasis-border)] px-[11px] py-[6px] text-[12px] font-semibold text-[var(--oasis-text-muted)]">
-          Model {MODEL_VERSION}
+          {live.headline.season}
         </span>
       </div>
 
       <div className="font-mono text-[10px] font-semibold tracking-[0.1em] text-[var(--oasis-text-dim)]">
-        PREDICTION LEDGER — BACKTEST
+        PREDICTION live.ledger — BACKTEST
       </div>
+      <div className="-mx-1 overflow-x-auto px-1">
+      <div className="min-w-[760px]">
       <div className="flex border-b border-[var(--oasis-border)] px-1 py-[10px] font-mono text-[10px] font-semibold tracking-[0.08em] text-[var(--oasis-text-dim)]">
         <span className="w-24">DATE</span>
         <span className="w-[42px]">LG</span>
@@ -70,6 +70,8 @@ export function PerformanceLedger() {
           </span>
         </div>
       ))}
+      </div>
+      </div>
       {rows.length === 0 && (
         <div className="rounded-[10px] border border-dashed border-[var(--oasis-border-strong)] p-5 text-center text-[13px] font-semibold text-[var(--oasis-text-muted)]">
           No settled predictions for this league yet.
@@ -78,7 +80,7 @@ export function PerformanceLedger() {
 
       <div className="mt-2 flex flex-wrap items-center gap-[14px] font-mono text-[11.5px] font-medium text-[var(--oasis-text-muted)]">
         <span>
-          latest {rows.length} of {HEADLINE.n_test} scored backtest matches
+          latest {rows.length} of {live.headline.n_test} scored backtest matches
         </span>
         <span className="ml-auto text-[var(--oasis-text-faint)]">
           losses are shown in full — records cannot be removed

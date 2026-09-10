@@ -3,12 +3,11 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import { AlertToggle } from "@/components/match/alert-toggle";
-import { FRESHNESS, MATCHES, MODEL_VERSION, PREDICTIONS_GENERATED_AT, getMatchById, utcClock } from "@/lib/data";
+import { getMatchById, utcClock } from "@/lib/data";
+import { getLive } from "@/lib/live-server";
 import { deriveMatch } from "@/lib/derive";
 
-export function generateStaticParams() {
-  return MATCHES.map((m) => ({ id: String(m.id) }));
-}
+export const dynamic = "force-dynamic";
 
 const MATRIX_DISPLAY_GOALS = 5;
 
@@ -19,7 +18,8 @@ function utcStamp(iso: string): string {
 
 export default async function MatchDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const record = getMatchById(Number(id));
+  const live = await getLive();
+  const record = getMatchById(live, Number(id));
   if (!record) notFound();
 
   const m = deriveMatch(record);
@@ -31,7 +31,7 @@ export default async function MatchDetailPage({ params }: { params: Promise<{ id
   const timeline = [
     {
       label: "Initial",
-      time: utcStamp(PREDICTIONS_GENERATED_AT),
+      time: utcStamp(live.predictions_generated_at),
       detail: `${m.probsLabel} · pre-lineup model run`,
       tone: "final" as const,
     },
@@ -50,12 +50,12 @@ export default async function MatchDetailPage({ params }: { params: Promise<{ id
   ];
 
   return (
-    <div className="flex w-full flex-col gap-[14px] p-5">
-      <div className="flex flex-wrap items-center gap-4 rounded-[10px] border border-[var(--oasis-border)] bg-[var(--oasis-surface)] p-4">
+    <div className="flex w-full flex-col gap-[14px] p-3 sm:p-5">
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-[10px] border border-[var(--oasis-border)] bg-[var(--oasis-surface)] p-4">
         <Link href="/" className="font-mono text-[12px] font-semibold text-[var(--oasis-text-dim)]">
           ← Board
         </Link>
-        <span className="text-[21px] font-bold leading-none tracking-[-0.02em]">
+        <span className="text-[18px] font-bold leading-none tracking-[-0.02em] sm:text-[21px]">
           {m.home} <span className="font-medium text-[var(--oasis-text-faint)]">v</span> {m.away}
         </span>
         <span className="font-mono text-[11.5px] font-medium text-[var(--oasis-text-muted)]">
@@ -76,42 +76,46 @@ export default async function MatchDetailPage({ params }: { params: Promise<{ id
             variant="outline"
             className="font-mono text-[10px] font-semibold tracking-[0.08em] text-[var(--oasis-text-muted)]"
           >
-            MODEL {MODEL_VERSION.toUpperCase()}
+            MODEL {(live.model_versions[m.lg] ?? "").toUpperCase()}
           </Badge>
         </span>
       </div>
 
-      <div className="flex flex-col gap-5 rounded-[10px] border border-[var(--oasis-border)] bg-[var(--oasis-surface)] p-5 md:flex-row md:items-center">
+      <div className="flex flex-col gap-5 rounded-[10px] border border-[var(--oasis-border)] bg-[var(--oasis-surface)] p-4 sm:p-5 md:flex-row md:items-center">
         <div className="flex flex-1 flex-col gap-[9px]">
           <div className="flex h-11 overflow-hidden rounded-[9px]">
             <div
-              className="flex items-center justify-center font-mono text-[15px] font-bold text-[var(--oasis-home-ink)]"
+              className="flex items-center justify-center overflow-hidden whitespace-nowrap font-mono text-[12.5px] font-bold text-[var(--oasis-home-ink)] sm:text-[15px]"
               style={{ width: `${m.h}%`, background: "var(--oasis-home)" }}
             >
               {m.h.toFixed(1)}%
             </div>
             <div
-              className="flex items-center justify-center font-mono text-[15px] font-bold"
+              className="flex items-center justify-center overflow-hidden whitespace-nowrap font-mono text-[12.5px] font-bold sm:text-[15px]"
               style={{ width: `${m.d}%`, background: "var(--oasis-draw)" }}
             >
               {m.d.toFixed(1)}%
             </div>
             <div
-              className="flex items-center justify-center font-mono text-[15px] font-bold text-[#1a1206]"
+              className="flex items-center justify-center overflow-hidden whitespace-nowrap font-mono text-[12.5px] font-bold text-[#1a1206] sm:text-[15px]"
               style={{ width: `${m.a}%`, background: "var(--oasis-away)" }}
             >
               {m.a.toFixed(1)}%
             </div>
           </div>
-          <div className="flex justify-between font-mono text-[10.5px] font-semibold tracking-[0.07em] text-[var(--oasis-text-muted)]">
+          <div className="flex justify-between gap-2 font-mono text-[9px] font-semibold tracking-[0.07em] text-[var(--oasis-text-muted)] sm:text-[10.5px]">
             <span>{m.home.toUpperCase()} WIN</span>
             <span>DRAW</span>
             <span>{m.away.toUpperCase()} WIN</span>
           </div>
         </div>
         <div className="hidden h-14 w-px self-center bg-[var(--oasis-border)] md:block" />
-        <div className="flex flex-wrap gap-6">
-          <Stat label="LIKELY SCORE" value={m.score} />
+        <div className="flex flex-wrap gap-4 sm:gap-6">
+          <Stat
+            label={m.pick === "draw" ? "LIKELY SCORE" : `LIKELY ${m.pick.toUpperCase()}-WIN SCORE`}
+            value={`${m.condScore} · ${Math.round(m.condPct)}%`}
+          />
+          <Stat label="MODE (ALL SCORES)" value={`${m.score} · ${Math.round(m.matrix.peakPct)}%`} />
           <Stat label="EXP. GOALS (PROXY)" value={`${m.muHome.toFixed(2)} / ${m.muAway.toFixed(2)}`} />
           <Stat label="O2.5 / BTTS" value={`${matrix.over25} / ${matrix.btts}`} />
           <Stat label="EDGE (HOME)" value={m.edgeLabel} valueColor={m.edge !== null ? "var(--oasis-positive)" : undefined} />
@@ -175,7 +179,7 @@ export default async function MatchDetailPage({ params }: { params: Promise<{ id
           </div>
           {m.factors.map((f) => (
             <div key={f.label} className="flex items-center gap-[10px]">
-              <span className="w-[132px] text-[12.5px] font-semibold">{f.label}</span>
+              <span className="w-[104px] text-[11.5px] font-semibold sm:w-[132px] sm:text-[12.5px]">{f.label}</span>
               <span className="flex flex-1">
                 {f.weight >= 0 ? (
                   <>
@@ -293,7 +297,7 @@ export default async function MatchDetailPage({ params }: { params: Promise<{ id
               </span>
             </div>
             <div className="font-mono text-[10.5px] font-medium text-[var(--oasis-text-faint)]">
-              injuries updated {utcClock(FRESHNESS.injuries)} UTC · lineups not yet confirmed
+              injuries updated {utcClock(live.freshness.injuries)} UTC · lineups not yet confirmed
             </div>
           </div>
 
@@ -312,7 +316,7 @@ function Stat({ label, value, valueColor }: { label: string; value: string; valu
   return (
     <div>
       <div className="font-mono text-[10px] font-semibold tracking-[0.09em] text-[var(--oasis-text-dim)]">{label}</div>
-      <div className="font-mono text-[22px] font-medium" style={{ color: valueColor }}>
+      <div className="font-mono text-[17px] font-medium sm:text-[22px]" style={{ color: valueColor }}>
         {value}
       </div>
     </div>

@@ -16,35 +16,79 @@ from datetime import datetime, timezone
 import backtest_common
 import blend_train
 import config
+import leagues
 import goals_train
 import metrics
 import outcome_baselines
 import outcome_model
 import outcome_train
 
-FOLD_TEST_SEASONS = [2021, 2022, 2023, 2024, 2025]
+DEFAULT_FOLD_TEST_SEASONS = [2021, 2022, 2023, 2024, 2025]
 THIN_TRAIN_FOLDS = [2021]  # 2 train seasons; validate/calibrate are COVID-era
 DECAY = 0.8  # PRD 8.3 target; outcome_train.py picks the exact shipping decay
 
 B_DRAWS = [round(-0.5 + 0.05 * i, 2) for i in range(21)]
 
-ROWS = [
-    {"name": "logistic9", "kind": "logistic", "feats": outcome_train.NINE, "decay": None},
-    {"name": "logistic9_decay", "kind": "logistic", "feats": outcome_train.NINE, "decay": DECAY},
-    {"name": "logistic11_sched", "kind": "logistic", "feats": outcome_train.ELEVEN_SCHED, "decay": DECAY},
-    {"name": "logistic11_ew", "kind": "logistic", "feats": outcome_train.ELEVEN_EW, "decay": DECAY},
-    {"name": "logistic12_corn", "kind": "logistic", "feats": outcome_train.TWELVE_CORN, "decay": DECAY},
-    {"name": "logistic13_xg", "kind": "logistic", "feats": outcome_train.THIRTEEN_XG, "decay": DECAY},
-    {"name": "logistic14_ks", "kind": "logistic", "feats": outcome_train.FOURTEEN_KS, "decay": DECAY},
-    {"name": "logistic12_close", "kind": "logistic", "feats": outcome_train.TWELVE_CLOSE, "decay": DECAY},
-    {"name": "logistic14_draw", "kind": "logistic", "feats": outcome_train.FOURTEEN_DRAW, "decay": DECAY},
-    {"name": "dc_outcome", "kind": "dc", "decay": DECAY},
-    {"name": "dc_outcome_nodecay", "kind": "dc", "decay": None},
-    {"name": "blend_draw_dc", "kind": "blend", "feats": outcome_train.FOURTEEN_DRAW, "decay": DECAY},
-    {"name": "logistic14_draw_bias", "kind": "logistic_bias", "feats": outcome_train.FOURTEEN_DRAW, "decay": DECAY},
-]
+def rows_for(enriched: bool) -> list:
+    """Candidate rows for one league's harness run. Enriched leagues (shot
+    stats + lineups ingested) get the full historical ladder plus the new
+    venue/trend/schedule-strength candidates; the rest get the
+    fixtures+injuries ladder plus the same new candidates."""
+    if enriched:
+        return [
+            {"name": "logistic9", "kind": "logistic", "feats": outcome_train.NINE, "decay": None},
+            {"name": "logistic9_decay", "kind": "logistic", "feats": outcome_train.NINE, "decay": DECAY},
+            {"name": "logistic11_sched", "kind": "logistic", "feats": outcome_train.ELEVEN_SCHED, "decay": DECAY},
+            {"name": "logistic11_ew", "kind": "logistic", "feats": outcome_train.ELEVEN_EW, "decay": DECAY},
+            {"name": "logistic12_corn", "kind": "logistic", "feats": outcome_train.TWELVE_CORN, "decay": DECAY},
+            {"name": "logistic13_xg", "kind": "logistic", "feats": outcome_train.THIRTEEN_XG, "decay": DECAY},
+            {"name": "logistic14_ks", "kind": "logistic", "feats": outcome_train.FOURTEEN_KS, "decay": DECAY},
+            {"name": "logistic12_close", "kind": "logistic", "feats": outcome_train.TWELVE_CLOSE, "decay": DECAY},
+            {"name": "logistic14_draw", "kind": "logistic", "feats": outcome_train.FOURTEEN_DRAW, "decay": DECAY},
+            {"name": "logistic12_venue", "kind": "logistic", "feats": outcome_train.ELEVEN_EW + ["venue_form_diff"], "decay": DECAY},
+            {"name": "logistic12_trend", "kind": "logistic", "feats": outcome_train.ELEVEN_EW + ["elo_trend_diff"], "decay": DECAY},
+            {"name": "logistic12_schedstr", "kind": "logistic", "feats": outcome_train.ELEVEN_EW + ["sched_strength_diff"], "decay": DECAY},
+            {"name": "logistic14_new3", "kind": "logistic", "feats": outcome_train.ELEVEN_EW + outcome_train.NEW3, "decay": DECAY},
+            {"name": "full_ratings", "kind": "logistic", "feats": outcome_train.ELEVEN_EW + outcome_train.RATING3, "decay": DECAY},
+            {"name": "full_minus_h2h", "kind": "logistic", "feats": outcome_train._minus(outcome_train.ELEVEN_EW, "h2h_signal"), "decay": DECAY},
+            {"name": "full_ghost", "kind": "logistic", "feats": outcome_train.ELEVEN_EW + outcome_train.GHOST, "decay": DECAY},
+            {"name": "full_restbins", "kind": "logistic", "feats": outcome_train.ELEVEN_EW + outcome_train.RESTBINS, "decay": DECAY},
+            {"name": "full_ew10", "kind": "logistic", "feats": outcome_train._swap(outcome_train.ELEVEN_EW, outcome_train.EW_TRIO, outcome_train.EW10_TRIO), "decay": DECAY},
+            {"name": "ratings_core", "kind": "logistic", "feats": outcome_train.RATINGS_CORE, "decay": DECAY},
+            {"name": "full_kitchen", "kind": "logistic", "feats": outcome_train.ELEVEN_EW + outcome_train.NEW3 + outcome_train.RATING3 + outcome_train.GHOST, "decay": DECAY},
+            {"name": "ordered_elo", "kind": "ordered", "feat": "elo_diff", "decay": DECAY},
+            {"name": "ordered_pi", "kind": "ordered", "feat": "pi_pred_gd", "decay": DECAY},
+            {"name": "davidson_elo", "kind": "davidson", "feat": "elo_diff", "decay": DECAY},
+            {"name": "dc_outcome", "kind": "dc", "decay": DECAY},
+            {"name": "dc_outcome_nodecay", "kind": "dc", "decay": None},
+            {"name": "blend_draw_dc", "kind": "blend", "feats": outcome_train.FOURTEEN_DRAW, "decay": DECAY},
+            {"name": "logistic14_draw_bias", "kind": "logistic_bias", "feats": outcome_train.FOURTEEN_DRAW, "decay": DECAY},
+        ]
+    return [
+        {"name": "logistic7_base", "kind": "logistic", "feats": outcome_train.BASE_SEVEN, "decay": None},
+        {"name": "logistic8_inj", "kind": "logistic", "feats": outcome_train.BASE_EIGHT, "decay": None},
+        {"name": "logistic8_inj_decay", "kind": "logistic", "feats": outcome_train.BASE_EIGHT, "decay": DECAY},
+        {"name": "logistic9_venue", "kind": "logistic", "feats": outcome_train.BASE_EIGHT + ["venue_form_diff"], "decay": None},
+        {"name": "logistic9_trend", "kind": "logistic", "feats": outcome_train.BASE_EIGHT + ["elo_trend_diff"], "decay": None},
+        {"name": "logistic9_schedstr", "kind": "logistic", "feats": outcome_train.BASE_EIGHT + ["sched_strength_diff"], "decay": None},
+        {"name": "logistic11_new3", "kind": "logistic", "feats": outcome_train.BASE_EIGHT + outcome_train.NEW3, "decay": None},
+        {"name": "base_ratings", "kind": "logistic", "feats": outcome_train.BASE_EIGHT + outcome_train.RATING3, "decay": None},
+        {"name": "base_minus_h2h", "kind": "logistic", "feats": outcome_train._minus(outcome_train.BASE_EIGHT, "h2h_signal"), "decay": None},
+        {"name": "base_ghost", "kind": "logistic", "feats": outcome_train.BASE_EIGHT + outcome_train.GHOST, "decay": None},
+        {"name": "base_restbins", "kind": "logistic", "feats": outcome_train.BASE_EIGHT + outcome_train.RESTBINS, "decay": None},
+        {"name": "base_ew10", "kind": "logistic", "feats": outcome_train._swap(outcome_train.BASE_EIGHT, outcome_train.EW_TRIO, outcome_train.EW10_TRIO), "decay": None},
+        {"name": "ratings_core", "kind": "logistic", "feats": outcome_train.RATINGS_CORE, "decay": None},
+        {"name": "base_kitchen", "kind": "logistic", "feats": outcome_train.BASE_EIGHT + outcome_train.NEW3 + outcome_train.RATING3 + outcome_train.GHOST, "decay": None},
+        {"name": "ordered_elo", "kind": "ordered", "feat": "elo_diff", "decay": None},
+        {"name": "ordered_pi", "kind": "ordered", "feat": "pi_pred_gd", "decay": None},
+        {"name": "davidson_elo", "kind": "davidson", "feat": "elo_diff", "decay": None},
+        {"name": "dc_outcome", "kind": "dc", "decay": None},
+    ]
 
+
+# Incumbent per ladder: the control the mean-log-loss rule is judged against.
 INCUMBENT = "logistic9"
+BASE_INCUMBENT = "logistic8_inj"
 
 
 def select_temperature_bias(artifact: dict, cal_samples: list) -> dict:
@@ -82,7 +126,7 @@ def _row_metrics(scored: list) -> dict:
     }
 
 
-def run_fold(samples: list, T: int) -> dict:
+def run_fold(samples: list, T: int, rows: list) -> dict:
     buckets = backtest_common.split_by_season(
         samples,
         train_seasons=list(range(2017, T - 2)),
@@ -118,10 +162,14 @@ def run_fold(samples: list, T: int) -> dict:
             cache[key] = goals_train.fit_goals_artifact(buckets, decay=decay)
         return cache[key]
 
-    for row in ROWS:
+    for row in rows:
         kind = row["kind"]
         if kind == "logistic":
             artifact = logistic_artifact(row["feats"], row["decay"])
+        elif kind == "ordered":
+            artifact = outcome_train.build_ordered_artifact(row["feat"], buckets, decay=row["decay"])
+        elif kind == "davidson":
+            artifact = outcome_train.build_davidson_artifact(row["feat"], buckets, decay=row["decay"])
         elif kind == "dc":
             artifact = {"type": "dc_outcome", "max_goals": 6, "goals": goals_artifact(row["decay"])}
         elif kind == "blend":
@@ -155,15 +203,49 @@ def run_fold(samples: list, T: int) -> dict:
 
 
 def main() -> None:
+    import argparse
+
+    parser = argparse.ArgumentParser(description="Walk-forward harness for one league. Ships nothing.")
+    parser.add_argument("--league", type=str, default="pl", help=f"League code: {list(leagues.TARGETS)}")
+    parser.add_argument(
+        "--folds",
+        type=str,
+        default=None,
+        help='Test seasons for the folds, e.g. "2023-2025" or "2021,2023,2025" (default: 2021-2025)',
+    )
+    args = parser.parse_args()
+
+    if args.folds:
+        FOLD_TEST_SEASONS = []
+        for part in args.folds.split(","):
+            if "-" in part:
+                lo, hi = part.split("-")
+                FOLD_TEST_SEASONS.extend(range(int(lo), int(hi) + 1))
+            else:
+                FOLD_TEST_SEASONS.append(int(part))
+    else:
+        FOLD_TEST_SEASONS = DEFAULT_FOLD_TEST_SEASONS
+    league_cfg = leagues.target_config(args.league)
+
     started = datetime.now(timezone.utc)
-    conn, samples = outcome_train.load_enriched_buckets()
+    conn, samples = outcome_train.load_enriched_buckets(league_cfg)
+
+    n_stats = conn.execute(
+        "SELECT COUNT(*) FROM fixture_statistics fs JOIN fixtures f ON f.fixture_id = fs.fixture_id"
+        " WHERE f.league_id = ?",
+        (league_cfg["league_id"],),
+    ).fetchone()[0]
+    enriched = n_stats > 1000
+    rows = rows_for(enriched)
+    incumbent = INCUMBENT if enriched else BASE_INCUMBENT
+    print(f"league={args.league} enriched={enriched} incumbent={incumbent} rows={len(rows)}")
 
     per_fold = {}
     for T in FOLD_TEST_SEASONS:
         print(f"\n=== fold: test={T} (train=2017-{T - 3}, validate={T - 2}, calibrate={T - 1}) ===")
-        per_fold[str(T)] = run_fold(samples, T)
+        per_fold[str(T)] = run_fold(samples, T, rows)
 
-    row_names = ["frequency", "elo_only"] + [r["name"] for r in ROWS]
+    row_names = ["frequency", "elo_only"] + [r["name"] for r in rows]
     metric_keys = ["log_loss", "rps", "accuracy", "draw_log_loss", "ece"]
 
     def mean_over(folds):
@@ -178,10 +260,10 @@ def main() -> None:
     non_thin = [T for T in FOLD_TEST_SEASONS if T not in THIN_TRAIN_FOLDS]
     mean_excl = mean_over(non_thin)
 
-    incumbent_ll = mean_all[INCUMBENT]["log_loss"]
+    incumbent_ll = mean_all[incumbent]["log_loss"]
     best_name = min(row_names, key=lambda n: mean_all[n]["log_loss"])
     decision = {
-        "incumbent": INCUMBENT,
+        "incumbent": incumbent,
         "incumbent_mean_log_loss": incumbent_ll,
         "best_by_mean_log_loss": best_name,
         "best_mean_log_loss": mean_all[best_name]["log_loss"],
@@ -195,7 +277,7 @@ def main() -> None:
         cells = " ".join(f"{per_fold[str(T)][name]['log_loss']:7.4f}" for T in FOLD_TEST_SEASONS)
         print(f"{name:24s} {cells} {mean_all[name]['log_loss']:7.4f} {mean_all[name]['draw_log_loss']:7.4f}")
     print(f"\ndecision: best={best_name} ({mean_all[best_name]['log_loss']:.4f}) "
-          f"vs incumbent {INCUMBENT} ({incumbent_ll:.4f}) -> beats_incumbent={decision['beats_incumbent']}")
+          f"vs incumbent {incumbent} ({incumbent_ll:.4f}) -> beats_incumbent={decision['beats_incumbent']}")
 
     finished = datetime.now(timezone.utc)
     report = {
@@ -205,7 +287,8 @@ def main() -> None:
             "folds": FOLD_TEST_SEASONS,
             "thin_train_folds": THIN_TRAIN_FOLDS,
             "decay": DECAY,
-            "rows": [{k: (list(v) if isinstance(v, list) else v) for k, v in r.items()} for r in ROWS],
+            "league": args.league,
+            "rows": [{k: (list(v) if isinstance(v, list) else v) for k, v in r.items()} for r in rows],
             "decision_rule": decision["rule"],
         },
         "per_fold": per_fold,
@@ -216,7 +299,7 @@ def main() -> None:
 
     config.REPORTS_DIR.mkdir(parents=True, exist_ok=True)
     config.STATUS_DIR.mkdir(parents=True, exist_ok=True)
-    report_path = config.REPORTS_DIR / f"rolling_backtest_{started.strftime('%Y%m%dT%H%M%SZ')}.json"
+    report_path = config.REPORTS_DIR / f"rolling_backtest_{args.league}_{started.strftime('%Y%m%dT%H%M%SZ')}.json"
     report_path.write_text(json.dumps(report, indent=2))
     (config.STATUS_DIR / "rolling_backtest_status.json").write_text(
         json.dumps(

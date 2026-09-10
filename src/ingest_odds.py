@@ -29,7 +29,7 @@ import api_client
 import config
 import db
 
-DEFAULT_LEAGUE_IDS = [39]
+DEFAULT_LEAGUE_IDS = [39, 140, 135, 78, 253]  # all target leagues
 DEFAULT_HORIZON_DAYS = 8
 
 # API-Football bet ids for the markets worth structured storage.

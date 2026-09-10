@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { GENERATED_AT, utcClock } from "@/lib/data";
+import { utcClock } from "@/lib/data";
 import { cn } from "@/lib/utils";
 
 const NAV_LINKS = [
@@ -11,12 +11,12 @@ const NAV_LINKS = [
   { label: "Performance", href: "/performance", match: (p: string) => p.startsWith("/performance") },
 ];
 
-export function SiteHeader() {
+export function SiteHeader({ generatedAt }: { generatedAt: string }) {
   const pathname = usePathname();
 
   return (
     <header className="border-b border-[var(--oasis-border)] bg-[var(--oasis-surface)]">
-      <div className="flex w-full items-center gap-[26px] px-[22px] py-[14px]">
+      <div className="flex w-full items-center gap-4 px-4 py-3 sm:gap-[26px] sm:px-[22px] sm:py-[14px]">
         <Link href="/" className="flex items-center gap-[9px]">
           <span
             className="block h-[22px] w-[22px] rounded-[6px]"
@@ -49,17 +49,36 @@ export function SiteHeader() {
         <div className="ml-auto flex items-center gap-3">
           <span className="hidden items-center gap-[6px] font-mono text-[11.5px] font-medium text-[var(--oasis-text-dim)] md:flex">
             <span className="h-[6px] w-[6px] rounded-full bg-[var(--oasis-positive)]" />
-            data {utcClock(GENERATED_AT)} UTC
+            data {utcClock(generatedAt)} UTC
           </span>
           <button
             type="button"
-            className="rounded-[7px] bg-[var(--oasis-home)] px-[13px] py-[7px] text-[12.5px] font-bold text-[var(--oasis-home-ink)]"
+            className="whitespace-nowrap rounded-[7px] bg-[var(--oasis-home)] px-[11px] py-[6px] text-[11.5px] font-bold text-[var(--oasis-home-ink)] sm:px-[13px] sm:py-[7px] sm:text-[12.5px]"
           >
             Get lifetime access
           </button>
-          <span className="h-7 w-7 rounded-full border border-[var(--oasis-border-strong)] bg-[var(--oasis-border)]" />
+          <span className="hidden h-7 w-7 rounded-full border border-[var(--oasis-border-strong)] bg-[var(--oasis-border)] sm:block" />
         </div>
       </div>
+
+      <nav className="flex items-center gap-5 overflow-x-auto px-4 pb-[10px] text-[12.5px] font-semibold sm:hidden">
+        {NAV_LINKS.map((link) => (
+          <Link
+            key={link.href}
+            href={link.href}
+            className={cn(
+              "whitespace-nowrap transition-colors",
+              link.match(pathname ?? "")
+                ? "text-[var(--oasis-text)]"
+                : "text-[var(--oasis-text-muted)]",
+            )}
+          >
+            {link.label}
+          </Link>
+        ))}
+        <span className="cursor-default whitespace-nowrap text-[var(--oasis-text-muted)]">Method</span>
+        <span className="cursor-default whitespace-nowrap text-[var(--oasis-text-muted)]">Pricing</span>
+      </nav>
     </header>
   );
 }
