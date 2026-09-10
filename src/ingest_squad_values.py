@@ -10,6 +10,9 @@ the next 30 days) and each of its two clubs, the squad value as of kickoff:
   * that latest valuation must be within MAX_STALE_DAYS of kickoff, or
     the player is treated as gone (retired / left without re-valuation)
   * squad value = sum of the top TOP_N such valuations
+  * fewer than MIN_PLAYERS valued players (the dataset profiles first-tier
+    squads, so a promoted club arrives thin) = no row, so the feature reads
+    0.0 (unknown) instead of a tiny squad
 
 Clubs are matched to API-Football team ids by normalised name within the
 club's country, with explicit OVERRIDES for the ones that differ; any
@@ -43,6 +46,7 @@ TABLES = ["competitions", "clubs", "player_valuations"]
 REFRESH_DAYS = 7
 TOP_N = 25
 MAX_STALE_DAYS = 540
+MIN_PLAYERS = 15  # fewer valued players = coverage gap (promoted club): treat as unknown, not as a tiny squad
 FIRST_SEASON = 2017
 HORIZON_DAYS = 30
 COUNTRY_BY_LEAGUE = {39: "England", 140: "Spain", 135: "Italy", 78: "Germany", 253: "United States"}
@@ -222,7 +226,7 @@ def compute_values(fixtures: list, mapping: dict) -> list:
             if not m:
                 continue
             squad = sorted((v for d, v in members[m[0]].values() if d >= stale_before and v > 0), reverse=True)[:TOP_N]
-            if squad:
+            if len(squad) >= MIN_PLAYERS:
                 out.append({"fixture_id": f["fixture_id"], "team_id": team_id, "value_eur": sum(squad),
                             "n_players": len(squad), "as_of": as_of, "computed_at": computed_at})
     return out
