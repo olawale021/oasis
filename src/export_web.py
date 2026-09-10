@@ -459,12 +459,14 @@ def latest_harness_means(code: str, version: str) -> dict:
     league's most recent walk-forward harness report -- the 5-fold mean is
     the selection metric and the honest headline; the single test-season
     number on the artifact is one (often the hardest) fold."""
-    reports = sorted(config.REPORTS_DIR.glob(f"rolling_backtest_{code}_*.json"))
-    if not reports:
-        return {}
-    report = json.loads(reports[-1].read_text())
-    mean = report.get("mean", {})
-    row = mean.get(version)
+    # Newest report that actually evaluated this version: paired candidate
+    # runs (--only deployed,deployed_x) also write reports, keyed by row name.
+    report, row, mean = None, None, {}
+    for path in sorted(config.REPORTS_DIR.glob(f"rolling_backtest_{code}_*.json"), reverse=True):
+        candidate = json.loads(path.read_text())
+        if version in candidate.get("mean", {}):
+            report, mean, row = candidate, candidate["mean"], candidate["mean"][version]
+            break
     if not row:
         return {}
     return {
@@ -473,6 +475,97 @@ def latest_harness_means(code: str, version: str) -> dict:
         "harness_freq_ll": round(mean["frequency"]["log_loss"], 4) if "frequency" in mean else None,
         "harness_folds": len(report.get("meta", {}).get("folds", [])) or 5,
     }
+
+
+PAIRED_EXPERIMENTS = [
+    ("squad_value", "Squad market value", "deployed_value", "value_diff",
+     "Transfermarkt point-in-time top-25 squad value, as a log ratio (ingest_squad_values.py)."),
+    ("all_comp_schedule", "All-competition rest & congestion", "deployed_allsched", "rest_all_diff",
+     "Rest days and congestion counting cups and European games, not just the league (ingest_team_fixtures.py)."),
+    ("player_strength", "Player-based team strength", "deployed_xi", "xi_strength_diff",
+     "Adjusted plus-minus player ratings at monthly checkpoints, summed over the expected XI (player_ratings.py)."),
+    ("xg", "Expected goals", "deployed_xg", "xg_diff",
+     "Rolling xG for/against from API-Football statistics; data exists from 2022/23, so judged on the 2024 and 2025 folds only."),
+]
+
+
+def _deployed_logistic_features(code: str) -> list:
+    """Feature list of the league's latest pure-logistic release (the blend's
+    league component) straight from the registry -- stdlib, no numpy."""
+    role = leagues.TARGETS[code]["outcome_artifact"].rsplit(".", 1)[0]
+    registry = json.loads((config.MODELS_DIR / "registry.json").read_text())
+    logistic = [e for e in registry if e["role"] == role and e.get("features") and e.get("model_type") != "blend"]
+    return max(logistic, key=lambda e: e["registered_at"])["features"] if logistic else []
+
+
+def build_experiments() -> list:
+    """Experiment log for the performance page: every candidate the harness
+    has judged, with the 5-fold mean before/after and whether it shipped.
+    Sources: rolling_backtest_{code}_*.json paired runs, forest_blend_*.json,
+    model_comparison_*.json. Read-only over the reports directory."""
+    out = []
+    for key, label, cand, feature, blurb in PAIRED_EXPERIMENTS:
+        rows = []
+        for code, cfg in leagues.TARGETS.items():
+            picked = None
+            for path in sorted(config.REPORTS_DIR.glob(f"rolling_backtest_{code}_*.json"), reverse=True):
+                rep = json.loads(path.read_text())
+                if "deployed" in rep.get("mean", {}) and cand in rep["mean"]:
+                    picked = rep
+                    break
+            if not picked:
+                continue
+            before = picked["mean"]["deployed"]["log_loss"]
+            after = picked["mean"][cand]["log_loss"]
+            folds = picked["meta"]["folds"]
+            won = sum(1 for T in folds if picked["per_fold"][str(T)][cand]["log_loss"] < picked["per_fold"][str(T)]["deployed"]["log_loss"])
+            rows.append({
+                "lg": cfg["web_code"], "before": round(before, 4), "after": round(after, 4),
+                "delta": round(after - before, 4), "folds": len(folds), "folds_won": won,
+                "shipped": feature in _deployed_logistic_features(code),
+                "ran_at": picked["meta"]["started_at"][:10],
+            })
+        if rows:
+            out.append({"key": key, "label": label, "blurb": blurb, "metric": "5-fold mean log loss", "rows": rows})
+
+    forest = sorted(config.REPORTS_DIR.glob("forest_blend_*.json"))
+    if forest:
+        rep = json.loads(forest[-1].read_text())
+        rows = []
+        for code, d in rep["decisions"].items():
+            m = d["means"]
+            after_key = "blend4" if "blend4" in m else "blend3"
+            rows.append({
+                "lg": leagues.TARGETS[code]["web_code"], "before": round(m["blend2"], 4), "after": round(m[after_key], 4),
+                "delta": round(m[after_key] - m["blend2"], 4), "folds": len(rep["meta"]["folds"]), "folds_won": None,
+                "shipped": bool(d["forest_endorsed"]),
+                "detail": f"forest weight {d['fixed_v']}" + (f", global forest {d['fixed_u']}" if d.get("fixed_u") else ""),
+                "ran_at": rep["meta"]["started_at"][:10],
+            })
+        out.append({"key": "random_forest", "label": "Random forest as a blend component", "metric": "5-fold mean log loss",
+                    "blurb": "League and pooled random forests added to the logistic blend; weight chosen on the 5-fold mean, capped at 0.6, shipped only if the gain is at least 0.001 (forest_blend.py).",
+                    "rows": rows})
+
+    bake = sorted(config.REPORTS_DIR.glob("model_comparison_*.json"))
+    if bake:
+        rep = json.loads(bake[-1].read_text())
+        base = next(r for r in rep["pooled"]["results"] if r["model"] == "logistic")["test_log_loss"]
+        rows = []
+        for r in rep["pooled"]["results"]:
+            if r["model"] == "logistic":
+                continue
+            v = r.get("vs_logistic") or {}
+            rows.append({
+                "lg": "ALL", "label": r["model"].replace("_", " "), "before": round(base, 4), "after": round(r["test_log_loss"], 4),
+                "delta": round(r["test_log_loss"] - base, 4), "folds": 1, "folds_won": None, "shipped": False,
+                "detail": ("significantly worse" if v.get("significant") and v.get("delta", 0) > 0 else
+                           "significantly better" if v.get("significant") else "not significant") + " (paired bootstrap)",
+                "ran_at": rep["generated_at"][:10],
+            })
+        out.append({"key": "learner_bakeoff", "label": "Learner bake-off vs logistic", "metric": "test-season log loss, pooled 1982 matches",
+                    "blurb": "SVM (linear, RBF), random forest and XGBoost on the deployed features with the same split, decay and temperature calibration (model_comparison.py).",
+                    "rows": rows})
+    return out
 
 
 def build_recent_results(conn, retro_probs: dict = None, days: int = 7) -> list:
@@ -647,6 +740,7 @@ def main() -> None:
         "headline": backtest["headline"],
         "live_record": backtest["live_record"],
         "recent_results": build_recent_results(conn, backtest["retro_probs"]),
+        "experiments": build_experiments(),
     }
 
     WEB_DATA_DIR.mkdir(parents=True, exist_ok=True)

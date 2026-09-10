@@ -1,12 +1,13 @@
 "use client";
 
 import { useState } from "react";
+import { ExperimentLog } from "@/components/performance/experiment-log";
 import { ModelComparison } from "@/components/performance/model-comparison";
 import { PerformanceLedger } from "@/components/performance/performance-ledger";
 import { LEAGUE_CODES, LEAGUE_NAMES, utcClock } from "@/lib/data";
 import type { LiveData } from "@/lib/data";
 
-const TABS = ["Record", "Model comparison"] as const;
+const TABS = ["Record", "Model comparison", "Experiments"] as const;
 type Tab = (typeof TABS)[number];
 
 export function PerformanceView({ live }: { live: LiveData }) {
@@ -51,7 +52,7 @@ export function PerformanceView({ live }: { live: LiveData }) {
         </span>
       </div>
 
-      {tab === "Record" ? <RecordView live={live} /> : <ModelComparison live={live} />}
+      {tab === "Record" ? <RecordView live={live} /> : tab === "Model comparison" ? <ModelComparison live={live} /> : <ExperimentLog experiments={live.experiments ?? []} />}
     </div>
   );
 }

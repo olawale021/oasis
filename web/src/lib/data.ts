@@ -17,6 +17,7 @@ import type {
   ModelRelease,
   RecentResult,
   StandingsRow,
+  Experiment,
 } from "./types";
 
 export interface LiveData {
@@ -42,6 +43,7 @@ export interface LiveData {
     accuracy: number | null;
   };
   recent_results: RecentResult[];
+  experiments: Experiment[];
 }
 
 export const LEAGUE_CODES: LeagueCode[] = ["EPL", "LAL", "SEA", "BUN", "MLS"];

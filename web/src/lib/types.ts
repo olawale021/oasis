@@ -188,3 +188,24 @@ export interface Headline {
   ece: number;
   season: string;
 }
+
+export interface ExperimentRow {
+  lg: string;
+  label?: string;
+  before: number;
+  after: number;
+  delta: number;
+  folds: number;
+  folds_won: number | null;
+  shipped: boolean;
+  detail?: string;
+  ran_at: string;
+}
+
+export interface Experiment {
+  key: string;
+  label: string;
+  blurb: string;
+  metric: string;
+  rows: ExperimentRow[];
+}
