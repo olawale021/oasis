@@ -114,7 +114,7 @@ export function ModelComparison({ live }: { live: LiveData }) {
                   <BarRow
                     key={`${h.version}-${h.registered_at}`}
                     label={`${h.version}${r.registrations > 1 ? ` ×${r.registrations}` : ""}`}
-                    sub={`${h.registered_at.slice(0, 10)} ${utcClock(h.registered_at)} UTC · ${h.features} features${
+                    sub={`${h.registered_at.slice(0, 10)} ${utcClock(h.registered_at)} UTC${h.features > 0 ? ` · ${h.features} features` : ""}${
                       h.test_accuracy !== null ? ` · acc ${(h.test_accuracy * 100).toFixed(1)}%` : ""
                     }`}
                     value={r.primary}
