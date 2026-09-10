@@ -81,7 +81,18 @@ def download_if_stale(name: str) -> Path:
         return path
     url = f"{BASE_URL}/{name}.csv.gz"
     print(f"downloading {url}", file=sys.stderr)
-    urllib.request.urlretrieve(url, path)
+    req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0 (compatible; oasis-pipeline/1.0)"})
+    try:
+        with urllib.request.urlopen(req, timeout=120) as resp, open(path.with_suffix(".tmp"), "wb") as out:
+            out.write(resp.read())
+        path.with_suffix(".tmp").replace(path)
+    except Exception as exc:
+        if path.exists():
+            # Refresh failed (the host 403s some address ranges): keep the
+            # copy we have -- it can also be rsynced from the laptop.
+            print(f"  download failed ({exc}); using existing {path.name}", file=sys.stderr)
+        else:
+            raise
     return path
 
 
