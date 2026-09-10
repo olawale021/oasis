@@ -82,8 +82,8 @@ export default async function MatchDetailPage({ params }: { params: Promise<{ id
         </span>
       </div>
 
-      <div className="flex flex-col gap-5 rounded-[10px] border border-[var(--oasis-border)] bg-[var(--oasis-surface)] p-4 sm:p-5 md:flex-row md:items-center">
-        <div className="flex flex-1 flex-col gap-[9px]">
+      <div className="flex flex-col gap-4 rounded-[10px] border border-[var(--oasis-border)] bg-[var(--oasis-surface)] p-4 sm:p-5">
+        <div className="flex flex-col gap-[9px]">
           <div className="flex h-11 overflow-hidden rounded-[9px]">
             <div
               className="flex items-center justify-center overflow-hidden whitespace-nowrap font-mono text-[12.5px] font-bold text-[var(--oasis-home-ink)] sm:text-[15px]"
@@ -110,16 +110,22 @@ export default async function MatchDetailPage({ params }: { params: Promise<{ id
             <span>{m.away.toUpperCase()} WIN</span>
           </div>
         </div>
-        <div className="hidden h-14 w-px self-center bg-[var(--oasis-border)] md:block" />
-        <div className="flex flex-wrap gap-4 sm:gap-6">
+        <div className="grid grid-cols-2 gap-[8px] sm:grid-cols-3 lg:grid-cols-6">
           <Stat
-            label={m.pick === "draw" ? "LIKELY SCORE" : `LIKELY ${m.pick.toUpperCase()}-WIN SCORE`}
-            value={`${m.condScore} · ${Math.round(m.condPct)}%`}
+            label="Likely score"
+            value={m.condScore}
+            sub={`${Math.round(m.condPct)}% chance${m.pick !== "draw" ? ` · if ${m.pick === "home" ? m.home : m.away} win` : ""}`}
           />
-          <Stat label="MODE (ALL SCORES)" value={`${m.score} · ${Math.round(m.matrix.peakPct)}%`} />
-          <Stat label="EXP. GOALS (PROXY)" value={`${m.muHome.toFixed(2)} / ${m.muAway.toFixed(2)}`} />
-          <Stat label="O2.5 / BTTS" value={`${matrix.over25} / ${matrix.btts}`} />
-          <Stat label="EDGE (HOME)" value={m.edgeLabel} valueColor={m.edge !== null ? "var(--oasis-positive)" : undefined} />
+          <Stat label="Most common score" value={m.score} sub={`${Math.round(m.matrix.peakPct)}% chance · any result`} />
+          <Stat label="Expected goals" value={`${m.muHome.toFixed(1)} – ${m.muAway.toFixed(1)}`} sub={`${m.home} – ${m.away}`} />
+          <Stat label="Over 2.5 goals" value={`${Math.round(matrix.over25)}%`} sub={`under ${Math.round(100 - matrix.over25)}%`} />
+          <Stat label="Both teams score" value={`${Math.round(matrix.btts)}%`} sub={`clean sheet ${Math.round(100 - matrix.btts)}%`} />
+          <Stat
+            label="Edge vs market"
+            value={m.edgeLabel}
+            sub={m.edge === null ? "no odds yet" : `${m.home} win · model minus market`}
+            valueColor={m.edge !== null ? (m.edge >= 0 ? "var(--oasis-positive)" : "var(--oasis-away)") : undefined}
+          />
         </div>
       </div>
 
@@ -313,13 +319,14 @@ export default async function MatchDetailPage({ params }: { params: Promise<{ id
   );
 }
 
-function Stat({ label, value, valueColor }: { label: string; value: string; valueColor?: string }) {
+function Stat({ label, value, sub, valueColor }: { label: string; value: string; sub?: string; valueColor?: string }) {
   return (
-    <div>
-      <div className="font-mono text-[10px] font-semibold tracking-[0.09em] text-[var(--oasis-text-dim)]">{label}</div>
-      <div className="font-mono text-[17px] font-medium sm:text-[22px]" style={{ color: valueColor }}>
+    <div className="min-w-0 rounded-[8px] border border-[var(--oasis-border)] bg-[var(--oasis-bg)] px-3 py-[9px]">
+      <div className="truncate font-mono text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--oasis-text-dim)]">{label}</div>
+      <div className="mt-[2px] whitespace-nowrap font-mono text-[19px] font-semibold leading-tight sm:text-[22px]" style={{ color: valueColor }}>
         {value}
       </div>
+      {sub && <div className="mt-[3px] truncate text-[11px] font-medium text-[var(--oasis-text-muted)]">{sub}</div>}
     </div>
   );
 }
