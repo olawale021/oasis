@@ -207,6 +207,33 @@ class SquadDisruptionStore:
 
 # --- 4. Single entrypoint --------------------------------------------------
 
+# --- 4. Squad market value (Transfermarkt, point-in-time) ------------------
+
+
+class SquadValueStore:
+    """Squad value as of kickoff, keyed by (fixture_id, team_id), from the
+    squad_values table (ingest_squad_values.py). The feature is the log
+    ratio of the two squads' values -- a strong prior on strength that is
+    sharpest exactly where Elo and form are weakest (season start,
+    promoted clubs). 0.0 when either side is missing, per the neutrality
+    rule for diff features."""
+
+    def __init__(self):
+        self._value = {}
+
+    def load(self, rows: list) -> None:
+        for r in rows:
+            if r["value_eur"] and r["value_eur"] > 0:
+                self._value[(r["fixture_id"], r["team_id"])] = float(r["value_eur"])
+
+    def diff(self, fixture_id: int, home_id: int, away_id: int) -> dict:
+        h = self._value.get((fixture_id, home_id))
+        a = self._value.get((fixture_id, away_id))
+        if not h or not a:
+            return {"value_diff": 0.0}
+        return {"value_diff": math.log(h) - math.log(a)}
+
+
 def richer_match_features(
     fixture_id: int,
     home_id: int,
@@ -215,11 +242,13 @@ def richer_match_features(
     shot_store: ShotStatsStore,
     missing_index: MissingPlayersIndex,
     squad_store: SquadDisruptionStore,
+    value_store: "SquadValueStore" = None,
 ) -> dict:
     feats = {}
     feats.update(shot_store.diffs(home_id, away_id, before))
     feats.update(missing_index.diff(fixture_id, home_id, away_id))
     feats.update(squad_store.match_disruption_diff(fixture_id, home_id, away_id, before))
+    feats.update((value_store or SquadValueStore()).diff(fixture_id, home_id, away_id))
     return feats
 
 
@@ -240,12 +269,14 @@ def enrich_samples(samples: list, conn, league_id: int = PL_ID, seasons: list = 
     lineup_rows = db.get_lineup_players_by_league(conn, [league_id], seasons)
     squad_store = SquadDisruptionStore()
     squad_store.load(lineup_rows)
+    value_store = SquadValueStore()
+    value_store.load(db.get_squad_values_by_league(conn, [league_id], seasons))
 
     enriched = []
     for s in samples:
         feats = richer_match_features(
             s["fixture_id"], s["home_team_id"], s["away_team_id"], s["kickoff_utc"],
-            shot_store, missing_index, squad_store,
+            shot_store, missing_index, squad_store, value_store,
         )
         enriched.append({**s, **feats})
     return enriched
