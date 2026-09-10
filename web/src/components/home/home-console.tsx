@@ -307,62 +307,41 @@ export function HomeConsole({ live }: { live: LiveData }) {
                 </button>
 
                 {isOpen && (
-                  <div className="grid grid-cols-1 gap-4 px-1 pb-[14px] sm:grid-cols-[1.4fr_1fr]">
-                    <div className="rounded-[9px] border border-[var(--oasis-border)] bg-[var(--oasis-surface)] p-3">
+                  <div className="mx-1 mb-[14px] flex flex-col gap-4 rounded-[9px] border border-[var(--oasis-border)] bg-[var(--oasis-surface)] p-3 sm:flex-row sm:items-start sm:gap-6">
+                    <div className="min-w-0 flex-1">
                       <div className="font-mono text-[10px] font-semibold tracking-[0.1em] text-[var(--oasis-text-dim)]">
                         WHY THIS FORECAST
                       </div>
                       <div className="mt-[6px] text-[13.5px] font-medium leading-[1.7] text-[var(--oasis-text-soft)]">
                         {m.why}
                       </div>
+                      <Link href={`/match/${m.id}`} className="mt-3 inline-block font-mono text-[12.5px] font-bold text-[var(--oasis-home)]">
+                        Open full match page →
+                      </Link>
                     </div>
-                    <div className="flex flex-col gap-[7px] rounded-[9px] border border-[var(--oasis-border)] bg-[var(--oasis-surface)] p-3 font-mono text-[12.5px] font-medium">
-                      <div className="flex justify-between">
-                        <span className="flex items-center gap-[6px] text-[var(--oasis-text-muted)]">
-                          <span className="h-[8px] w-[8px] rounded-[2px]" style={{ background: "var(--oasis-home)" }} />
-                          {m.home} win
-                        </span>
-                        <span>{Math.round(m.h)}%</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="flex items-center gap-[6px] text-[var(--oasis-text-muted)]">
-                          <span className="h-[8px] w-[8px] rounded-[2px]" style={{ background: "var(--oasis-draw)" }} />
-                          Draw
-                        </span>
-                        <span>{Math.round(m.d)}%</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="flex items-center gap-[6px] text-[var(--oasis-text-muted)]">
-                          <span className="h-[8px] w-[8px] rounded-[2px]" style={{ background: "var(--oasis-away)" }} />
-                          {m.away} win
-                        </span>
-                        <span>{Math.round(m.a)}%</span>
-                      </div>
-                      <div className="flex justify-between border-t border-[var(--oasis-border)] pt-[7px]">
+                    <div className="flex shrink-0 flex-col gap-[6px] font-mono text-[12.5px] font-medium sm:w-[320px] sm:border-l sm:border-[var(--oasis-border)] sm:pl-6">
+                      <div className="flex justify-between gap-4">
                         <span className="text-[var(--oasis-text-muted)]">confidence</span>
                         <span>{m.conf}</span>
                       </div>
-                      <div className="flex justify-between">
+                      <div className="flex justify-between gap-4">
                         <span className="text-[var(--oasis-text-muted)]">
-                          likely score{m.pick !== "draw" ? ` (if ${m.pick} win)` : ""}
+                          likely score{m.pick !== "draw" ? ` (${m.pick} win)` : ""}
                         </span>
-                        <span>
+                        <span className="whitespace-nowrap">
                           {m.condScore} · {Math.round(m.condPct)}%
                         </span>
                       </div>
-                      <div className="flex justify-between">
+                      <div className="flex justify-between gap-4">
                         <span className="text-[var(--oasis-text-muted)]">most likely overall</span>
-                        <span className="text-[var(--oasis-text-muted)]">
+                        <span className="whitespace-nowrap text-[var(--oasis-text-muted)]">
                           {m.score} · {Math.round(m.matrix.peakPct)}%
                         </span>
                       </div>
-                      <div className="flex justify-between">
+                      <div className="flex justify-between gap-4">
                         <span className="text-[var(--oasis-text-muted)]">market (no vig)</span>
                         <span className="text-[var(--oasis-text-muted)]">{m.marketLabel ?? "no odds yet"}</span>
                       </div>
-                      <Link href={`/match/${m.id}`} className="mt-[2px] text-[12.5px] font-bold text-[var(--oasis-home)]">
-                        Open full match page →
-                      </Link>
                     </div>
                   </div>
                 )}
