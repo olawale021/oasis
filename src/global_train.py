@@ -45,7 +45,7 @@ FOLD_TEST_SEASONS = [2021, 2022, 2023, 2024, 2025]
 # that made pooled training beat per-league in the only published head-to-head.
 CONTEXT_FEATS = ["tier2", "lg_hw_rate", "lg_draw_rate", "lg_goals_h", "lg_goals_a", "lg_n_teams"]
 GLOBAL_FEATS = (
-    outcome_train.BASE_EIGHT + outcome_train.NEW3 + outcome_train.RATING3
+    outcome_train.BASE_EIGHT + outcome_train.NEW3 + outcome_train.RATING3 + outcome_train.VALUE
     + leagues.DUMMY_FEATURES + CONTEXT_FEATS
 )
 GLOBAL_DECAY = 0.8

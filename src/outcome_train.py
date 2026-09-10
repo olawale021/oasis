@@ -112,6 +112,13 @@ CANDIDATES += [
     ("full_kitchen", ELEVEN_EW + NEW3 + RATING3 + GHOST),
 ]
 
+# Transfermarkt squad value (ingest_squad_values.py): every rung gets a
+# "+value" twin so the harness-endorsed set can ship by name. Paired 5-fold
+# test 2026-09-10: PL -0.0036, LAL -0.0010, SEA -0.0051, BUN -0.0020, MLS 0.
+VALUE = ["value_diff"]
+BASE_CANDIDATES += [(name + "_value", feats + VALUE) for name, feats in list(BASE_CANDIDATES)]
+CANDIDATES += [(name + "_value", feats + VALUE) for name, feats in list(CANDIDATES)]
+
 DECAY_GRID = [None, 0.9, 0.8, 0.7]  # None = unweighted control; PRD 8.3 target is 0.8
 TEMPERATURES = [round(0.5 + 0.05 * i, 2) for i in range(41)]  # 0.50..2.50 step 0.05
 
@@ -328,10 +335,14 @@ def main() -> None:
     candidates_by_name = dict(candidates)
 
     if args.ship:
-        if args.ship not in candidates_by_name:
-            raise SystemExit(f"unknown candidate {args.ship!r}; choices: {list(candidates_by_name)}")
+        # Ship-by-name may reference either ladder: a league's enrichment
+        # status can flip when statistics are ingested, but the harness
+        # endorsed a specific named set.
+        ship_choices = dict(BASE_CANDIDATES + CANDIDATES)
+        if args.ship not in ship_choices:
+            raise SystemExit(f"unknown candidate {args.ship!r}; choices: {list(ship_choices)}")
         ship_name = args.ship
-        feats = candidates_by_name[ship_name]
+        feats = ship_choices[ship_name]
         if args.decay is None:
             best_decay = 0.8  # the harness evaluates ladder rows at the PRD 8.3 decay
         else:
