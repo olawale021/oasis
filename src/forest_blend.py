@@ -10,12 +10,16 @@ Per fold T (train 2017..T-3, validate T-2, calibrate T-1, test T):
   global logistic  -- GLOBAL_FEATS on the pooled fit (+feeders), vec
                       scaling where the deployed decision uses it
   forest           -- league features, forest_train protocol
+  global forest    -- GLOBAL_FEATS on the same pooled fit (+feeders), same
+                      forest_train protocol: the tree analogue of the global
+                      logistic, so pooled data can steady a noisy league forest
   blend2 = w*league + (1-w)*global with the deployed fixed w
-  blend3(v) = (1-v)*blend2 + v*forest for v on a fixed grid
+  blend4(v,u) = (1-v-u)*blend2 + v*forest + u*global_forest, (v,u) on a
+                fixed grid with v+u <= V_MAX
 
-Decision per league: v* minimises the 5-fold mean; endorsed only if v* > 0
-and mean(blend2) - mean(blend3) >= MIN_GAIN (0.001 -- smaller gains are
-inside fold noise and not worth the artifact).
+Decision per league: (v*,u*) minimises the 5-fold mean; endorsed only if
+v*+u* > 0 and mean(blend2) - mean(blend4) >= MIN_GAIN (0.001 -- smaller
+gains are inside fold noise and not worth the artifact).
 
     python3 src/forest_blend.py            # harness only, ships nothing
     python3 src/forest_blend.py --ship     # also writes evaluation-track
@@ -61,20 +65,42 @@ def latest_forest_decisions() -> dict:
     return json.loads(open(reports[-1]).read())["decisions"] if reports else {}
 
 
-def three_way(blend2: list, forest: list, v: float) -> list:
-    return [tuple((1 - v) * b[k] + v * f[k] for k in range(3)) for b, f in zip(blend2, forest)]
+VU_GRID = [(v, u) for v in V_GRID for u in V_GRID if round(v + u, 2) <= V_MAX]
 
 
-def blend3_artifact(league_artifact: dict, global_artifact: dict, forest_artifact: dict, w: float, v: float, label: str) -> dict:
-    return {
-        "type": "blend",
-        "label": label,
-        "components": [
-            {"weight": round((1 - v) * w, 4), "model": league_artifact},
-            {"weight": round((1 - v) * (1 - w), 4), "model": global_artifact},
-            {"weight": round(v, 4), "model": forest_artifact},
-        ],
-    }
+def vu_key(v: float, u: float) -> str:
+    return f"{v},{u}"
+
+
+def four_way(blend2: list, forest: list, gforest: list, v: float, u: float) -> list:
+    r = 1 - v - u
+    return [tuple(r * b[k] + v * f[k] + u * g[k] for k in range(3)) for b, f, g in zip(blend2, forest, gforest)]
+
+
+def blend_artifact(league_artifact: dict, global_artifact: dict, forest_artifact: dict, gforest_artifact: dict,
+                   w: float, v: float, u: float, label: str) -> dict:
+    """League + global logistic, plus whichever forests carry weight."""
+    r = 1 - v - u
+    components = [
+        {"weight": round(r * w, 4), "model": league_artifact},
+        {"weight": round(r * (1 - w), 4), "model": global_artifact},
+    ]
+    if v > 0:
+        components.append({"weight": round(v, 4), "model": forest_artifact})
+    if u > 0:
+        components.append({"weight": round(u, 4), "model": gforest_artifact})
+    return {"type": "blend", "label": label, "components": components}
+
+
+def blend_label(spec_version: str, w: float, v: float, u: float, tag: str = "") -> str:
+    r = 1 - v - u
+    head = f"blend{int(w * 100)}_global" + (f"_rf{int(v * 100)}" if v > 0 else "") + (f"_grf{int(u * 100)}" if u > 0 else "") + (f"_{tag}" if tag else "")
+    parts = [f"{round(r * w, 3)} x {spec_version}", f"{round(r * (1 - w), 3)} x global15{'_' + tag if tag else ''}"]
+    if v > 0:
+        parts.append(f"{v} x forest")
+    if u > 0:
+        parts.append(f"{u} x global_forest")
+    return f"{head} [{' + '.join(parts)}]"
 
 
 def main() -> None:
@@ -104,6 +130,7 @@ def main() -> None:
         pooled["train"] += [f for code in leagues.TARGETS for f in league_feeders[code] if f["season"] in split_args["train_seasons"]]
         global_artifact = outcome_train.build_artifact(GLOBAL_FEATS, pooled, decay=GLOBAL_DECAY)
         global_vec = fit_vector_scaling(global_artifact, pooled["calibrate"]) if any(decisions_in[c].get("use_vec") for c in codes) else None
+        gforest_artifact = forest_train.build_forest_artifact(list(GLOBAL_FEATS), pooled, decay=GLOBAL_DECAY)
 
         for code in codes:
             buckets = league_buckets[code]
@@ -116,6 +143,7 @@ def main() -> None:
             forest_artifact = forest_train.build_forest_artifact(spec["features"], buckets, decay=spec["decay"])
             g = global_vec if dec.get("use_vec") else global_artifact
             lp, gp, fp = score_probs(test, league_artifact), score_probs(test, g), score_probs(test, forest_artifact)
+            gfp = score_probs(test, gforest_artifact)
             w = dec["fixed_w"]
             b2 = blend_probs(lp, gp, w)
             fit_set = buckets["train"] + buckets["validate"] + buckets["calibrate"]
@@ -128,31 +156,37 @@ def main() -> None:
                 "league_only": metrics_of(lp, test),
                 "global_only": metrics_of(gp, test),
                 "forest_only": metrics_of(fp, test),
+                "global_forest_only": metrics_of(gfp, test),
                 "blend2": metrics_of(b2, test),
                 "forest_leaf": forest_artifact["min_samples_leaf"],
                 "forest_T": forest_artifact["temperature"],
-                "blend3_ll_by_v": {str(v): log_loss_of(three_way(b2, fp, v), test) for v in V_GRID},
+                "global_forest_leaf": gforest_artifact["min_samples_leaf"],
+                "blend4_ll_by_vu": {vu_key(v, u): log_loss_of(four_way(b2, fp, gfp, v, u), test) for v, u in VU_GRID},
             }
             per_league_folds[code].append(fold)
             print(f"  fold {T} {code}: league {fold['league_only']['log_loss']:.4f} global {fold['global_only']['log_loss']:.4f} "
-                  f"forest {fold['forest_only']['log_loss']:.4f} (leaf={fold['forest_leaf']}, T={fold['forest_T']}) "
-                  f"blend2 {fold['blend2']['log_loss']:.4f} best blend3 {min(fold['blend3_ll_by_v'].values()):.4f}")
+                  f"forest {fold['forest_only']['log_loss']:.4f} gforest {fold['global_forest_only']['log_loss']:.4f} "
+                  f"blend2 {fold['blend2']['log_loss']:.4f} best blend4 {min(fold['blend4_ll_by_vu'].values()):.4f}")
 
     decisions = {}
     for code in codes:
         folds = per_league_folds[code]
-        rows = ("frequency", "elo_only", "league_only", "global_only", "forest_only", "blend2")
+        rows = ("frequency", "elo_only", "league_only", "global_only", "forest_only", "global_forest_only", "blend2")
         means = {r: sum(f[r]["log_loss"] for f in folds) / len(folds) for r in rows}
-        v_means = {v: sum(f["blend3_ll_by_v"][str(v)] for f in folds) / len(folds) for v in V_GRID}
-        best_v = min((v for v in V_GRID if v <= V_MAX), key=v_means.get)
-        means["blend3"] = v_means[best_v]
-        endorsed = best_v > 0 and means["blend2"] - means["blend3"] >= MIN_GAIN
-        decisions[code] = {"means": means, "v_means": {str(k): v for k, v in v_means.items()}, "fixed_v": best_v, "v_max": V_MAX,
-                           "uncapped_v": min(v_means, key=v_means.get),
+        vu_means = {(v, u): sum(f["blend4_ll_by_vu"][vu_key(v, u)] for f in folds) / len(folds) for v, u in VU_GRID}
+        best_v, best_u = min(vu_means, key=vu_means.get)
+        means["blend4"] = vu_means[(best_v, best_u)]
+        # Diagnostics: best single-forest mixes, for the record.
+        means["blend3_league_forest"] = min(vu_means[(v, 0.0)] for v in V_GRID if v <= V_MAX)
+        means["blend3_global_forest"] = min(vu_means[(0.0, u)] for u in V_GRID if u <= V_MAX)
+        endorsed = (best_v + best_u) > 0 and means["blend2"] - means["blend4"] >= MIN_GAIN
+        decisions[code] = {"means": means, "vu_means": {vu_key(v, u): ll for (v, u), ll in vu_means.items()},
+                           "fixed_v": best_v, "fixed_u": best_u, "v_max": V_MAX,
                            "fixed_w": decisions_in[code]["fixed_w"], "use_vec": decisions_in[code].get("use_vec", False),
                            "forest_endorsed": endorsed}
-        print(f"{code}: blend2={means['blend2']:.4f} forest={means['forest_only']:.4f} "
-              f"blend3(v={best_v})={means['blend3']:.4f} delta={means['blend3'] - means['blend2']:+.4f} "
+        print(f"{code}: blend2={means['blend2']:.4f} forest={means['forest_only']:.4f} gforest={means['global_forest_only']:.4f} "
+              f"blend4(v={best_v},u={best_u})={means['blend4']:.4f} delta={means['blend4'] - means['blend2']:+.4f} "
+              f"[league-forest-only best {means['blend3_league_forest']:.4f}, global-forest-only best {means['blend3_global_forest']:.4f}] "
               f"-> {'FOREST ENDORSED' if endorsed else 'blend2 stands'}")
 
     shipped = {}
@@ -163,32 +197,32 @@ def main() -> None:
         pooled_final["train"] += [f for code in leagues.TARGETS for f in league_feeders[code] if f["season"] in backtest_common.TRAIN_SEASONS]
         global_final = outcome_train.build_artifact(GLOBAL_FEATS, pooled_final, decay=GLOBAL_DECAY)
         global_final_vec = fit_vector_scaling(global_final, pooled_final["calibrate"])
+        gforest_final = forest_train.build_forest_artifact(list(GLOBAL_FEATS), pooled_final, decay=GLOBAL_DECAY)
         stamp = started.strftime("%Y%m%dT%H%M%SZ")
         for code, dec in decisions.items():
             if not dec["forest_endorsed"]:
                 continue
             cfg, spec, buckets = leagues.target_config(code), league_specs[code], final_buckets[code]
-            w, v = dec["fixed_w"], dec["fixed_v"]
+            w, v, u = dec["fixed_w"], dec["fixed_v"], dec["fixed_u"]
             league_artifact = outcome_train.build_artifact(spec["features"], buckets, decay=spec["decay"])
-            forest_artifact = forest_train.build_forest_artifact(spec["features"], buckets, decay=spec["decay"])
+            forest_artifact = forest_train.build_forest_artifact(spec["features"], buckets, decay=spec["decay"]) if v > 0 else None
             g = global_final_vec if dec["use_vec"] else global_final
-            label = (f"blend{int(w * 100)}_global_rf{int(v * 100)} "
-                     f"[{round((1 - v) * w, 3)} x {spec['version']} + {round((1 - v) * (1 - w), 3)} x global15 + {v} x forest]")
-            artifact = blend3_artifact(league_artifact, g, forest_artifact, w, v, label)
+            artifact = blend_artifact(league_artifact, g, forest_artifact, gforest_final, w, v, u, blend_label(spec["version"], w, v, u))
             test = buckets["test"]
-            p3 = three_way(blend_probs(score_probs(test, league_artifact), score_probs(test, g), w), score_probs(test, forest_artifact), v)
+            fp = score_probs(test, forest_artifact) if v > 0 else [(0.0, 0.0, 0.0)] * len(test)
+            p3 = four_way(blend_probs(score_probs(test, league_artifact), score_probs(test, g), w), fp, score_probs(test, gforest_final), v, u)
             m3 = metrics_of(p3, test)
             by_class = metrics.group_metrics([{**s, "p_home": p[0], "p_draw": p[1], "p_away": p[2]} for s, p in zip(test, p3)], key_fn=lambda s: s["cls"])
             artifact.update({
                 "test_log_loss": m3["log_loss"], "test_accuracy": m3["accuracy"], "test_rps": m3["rps"],
                 "test_draw_log_loss": by_class.get("1", {}).get("log_loss"),
-                "selected_on": "forest weight v selected on 5-fold harness mean (fixed-v grid); endorsed vs league+global blend on the same mean",
-                "trained_on": f"{backtest_common.TRAIN_SEASONS[0]}-{backtest_common.CALIBRATE_SEASON} (league + forest) + pooled global",
+                "selected_on": "forest weights (v league, u global) selected on 5-fold harness mean (fixed grid, v+u<=0.6); endorsed vs league+global blend on the same mean",
+                "trained_on": f"{backtest_common.TRAIN_SEASONS[0]}-{backtest_common.CALIBRATE_SEASON} (league + forest) + pooled global logistic + pooled global forest",
             })
             out_path = config.MODELS_DIR / cfg["outcome_artifact"]
             out_path.write_text(json.dumps(artifact, indent=1))
             entry = model_registry.register(out_path, deployed=True, notes="league + global + random forest blend (forest_blend.py)")
-            shipped[code] = {"w": w, "v": v, "version": entry["version"], "test_log_loss": m3["log_loss"]}
+            shipped[code] = {"w": w, "v": v, "u": u, "version": entry["version"], "test_log_loss": m3["log_loss"]}
             print(f"shipped {code}: {entry['version']} test_log_loss={m3['log_loss']:.4f}")
             report = {
                 "meta": {"started_at": started.isoformat(), "folds": FOLD_TEST_SEASONS, "league": code, "instrument": "forest_blend harness"},
@@ -198,8 +232,9 @@ def main() -> None:
                     "league_only": {"log_loss": dec["means"]["league_only"]},
                     "global_only": {"log_loss": dec["means"]["global_only"]},
                     "forest_only": {"log_loss": dec["means"]["forest_only"]},
+                    "global_forest_only": {"log_loss": dec["means"]["global_forest_only"]},
                     "blend2": {"log_loss": dec["means"]["blend2"]},
-                    entry["version"]: {"log_loss": dec["means"]["blend3"]},
+                    entry["version"]: {"log_loss": dec["means"]["blend4"]},
                 },
                 "per_fold": per_league_folds[code],
             }

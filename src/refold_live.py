@@ -96,6 +96,11 @@ def main() -> None:
         f"refold {tag}: temperature on pooled 2025"
     )
     global_live["trained_on"] = f"pooled 5 leagues through current played matches (PRD 12.2 refold {tag}; live ledger is the test)"
+    gforest_live = None
+    if any(d.get("fixed_u", 0) > 0 for d in forest_decisions.values()):
+        # Pooled random forest (tree analogue of the global logistic), fit on
+        # the same refold pooled buckets; the calibrate season stays unseen.
+        gforest_live = forest_train.build_forest_artifact(list(GLOBAL_FEATS), pooled, decay=GLOBAL_DECAY)
     global_path = config.MODELS_DIR / "outcome_model_global_live.json"
     global_path.write_text(json.dumps(global_live, indent=2))
     model_registry.register(global_path, deployed=True, notes="PRD 12.2 refold, live 2026/27 track")
@@ -110,15 +115,14 @@ def main() -> None:
         w = blend_ws.get(code)
         forest_dec = forest_decisions.get(code)
         if w is not None and forest_dec is not None:
-            # Forest endorsed by forest_blend.py's 5-fold harness: carry its
-            # fixed v into the live track. Same refold buckets; the forest
-            # never sees the calibrate season (forest_train protocol).
-            v = forest_dec["fixed_v"]
-            forest_live = forest_train.build_forest_artifact(spec["features"], buckets, decay=spec["decay"])
-            artifact = forest_blend.blend3_artifact(
-                league_artifact, global_live, forest_live, w, v,
-                f"blend{int(w * 100)}_global_rf{int(v * 100)}_{tag} "
-                f"[{round((1 - v) * w, 3)} x {spec['version']} + {round((1 - v) * (1 - w), 3)} x global15_{tag} + {v} x forest]",
+            # Forest(s) endorsed by forest_blend.py's 5-fold harness: carry the
+            # fixed weights (v league forest, u global forest) into the live
+            # track. Same refold buckets; forests never see the calibrate season.
+            v, u = forest_dec["fixed_v"], forest_dec.get("fixed_u", 0.0)
+            forest_live = forest_train.build_forest_artifact(spec["features"], buckets, decay=spec["decay"]) if v > 0 else None
+            artifact = forest_blend.blend_artifact(
+                league_artifact, global_live, forest_live, gforest_live, w, v, u,
+                forest_blend.blend_label(spec["version"], w, v, u, tag),
             )
         elif w is not None:
             artifact = {
