@@ -118,6 +118,12 @@ CANDIDATES += [
 VALUE = ["value_diff"]
 BASE_CANDIDATES += [(name + "_value", feats + VALUE) for name, feats in list(BASE_CANDIDATES)]
 CANDIDATES += [(name + "_value", feats + VALUE) for name, feats in list(CANDIDATES)]
+# Player-based strength (player_ratings.py): "+xi" twins. Paired 5-fold test
+# 2026-09-10: PL -0.0007, LAL 0, BUN +0.0001 -- below the floor; shipped in
+# PL on the operator's call (2026-09-10).
+XI = ["xi_strength_diff"]
+BASE_CANDIDATES += [(name + "_xi", feats + XI) for name, feats in list(BASE_CANDIDATES)]
+CANDIDATES += [(name + "_xi", feats + XI) for name, feats in list(CANDIDATES)]
 
 DECAY_GRID = [None, 0.9, 0.8, 0.7]  # None = unweighted control; PRD 8.3 target is 0.8
 TEMPERATURES = [round(0.5 + 0.05 * i, 2) for i in range(41)]  # 0.50..2.50 step 0.05

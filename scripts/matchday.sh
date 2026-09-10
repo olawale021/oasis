@@ -47,6 +47,13 @@ fi
 if [[ "$(date -u +%H)" == "04" ]]; then
   run ingest_squad_values $PY src/ingest_squad_values.py
 fi
+# Injuries (1 call per league) and confirmed lineups (1 call per newly
+# played fixture; cached ones are skipped): daily, so missing-player and
+# expected-XI features stay current on the server.
+if [[ "$(date -u +%H)" == "05" ]]; then
+  run ingest_injuries $PY src/ingest_injuries.py --league-ids 39,140,135,78,253 --seasons 2026 --force-refresh
+  run ingest_lineups  $PY src/ingest_lineups.py --league-ids 39,140,135,78,253 --seasons 2026
+fi
 run predict         $PY src/predict.py --horizon-days 8 > /dev/null
 run lock            $PY src/lifecycle.py lock --window-minutes 70
 run settle          $PY src/lifecycle.py settle

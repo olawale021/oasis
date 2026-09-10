@@ -36,6 +36,8 @@ STEP_FILES = [
     ("ingest_fixtures", "Fixtures & results"),
     ("ingest_team_fixtures", "All-competition fixtures"),
     ("ingest_squad_values", "Squad values (Transfermarkt)"),
+    ("ingest_injuries", "Injuries"),
+    ("ingest_lineups", "Lineups"),
     ("predict", "Predictions"),
     ("lifecycle", "Lock & settle"),
 ]
