@@ -46,6 +46,7 @@ from global_train import GLOBAL_DECAY, GLOBAL_FEATS, blend_probs, fit_vector_sca
 FOLD_TEST_SEASONS = [2021, 2022, 2023, 2024, 2025]
 V_GRID = [round(0.05 * i, 2) for i in range(21)]  # 0.00 .. 1.00 (1.0 = forest replaces the logistic blend)
 MIN_GAIN = 0.001  # mean log-loss improvement below this is noise: not worth a 1 MB tree artifact
+V_MAX = 0.6  # cap: the logistic components must keep >=40% so the match-page factor panel describes a model that matters
 
 
 def latest_decisions() -> dict:
@@ -143,10 +144,11 @@ def main() -> None:
         rows = ("frequency", "elo_only", "league_only", "global_only", "forest_only", "blend2")
         means = {r: sum(f[r]["log_loss"] for f in folds) / len(folds) for r in rows}
         v_means = {v: sum(f["blend3_ll_by_v"][str(v)] for f in folds) / len(folds) for v in V_GRID}
-        best_v = min(v_means, key=v_means.get)
+        best_v = min((v for v in V_GRID if v <= V_MAX), key=v_means.get)
         means["blend3"] = v_means[best_v]
         endorsed = best_v > 0 and means["blend2"] - means["blend3"] >= MIN_GAIN
-        decisions[code] = {"means": means, "v_means": {str(k): v for k, v in v_means.items()}, "fixed_v": best_v,
+        decisions[code] = {"means": means, "v_means": {str(k): v for k, v in v_means.items()}, "fixed_v": best_v, "v_max": V_MAX,
+                           "uncapped_v": min(v_means, key=v_means.get),
                            "fixed_w": decisions_in[code]["fixed_w"], "use_vec": decisions_in[code].get("use_vec", False),
                            "forest_endorsed": endorsed}
         print(f"{code}: blend2={means['blend2']:.4f} forest={means['forest_only']:.4f} "
