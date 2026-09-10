@@ -5,6 +5,7 @@ import { LEAGUE_CODES, LEAGUE_NAMES, matchesByLeague } from "@/lib/data";
 import { getLive } from "@/lib/live-server";
 import { deriveMatch } from "@/lib/derive";
 import type { LeagueCode } from "@/lib/types";
+import { MatchName, TeamLogo } from "@/components/team-logo";
 
 export const dynamic = "force-dynamic";
 
@@ -84,7 +85,7 @@ export default async function LeaguePage({ params }: { params: Promise<{ code: s
                 >
                   <span className="flex flex-col gap-[3px] sm:w-[250px]">
                     <span className="text-[15px] font-bold tracking-[-0.01em] sm:text-[16.5px]">
-                      {m.home} <span className="font-medium text-[var(--oasis-text-faint)]">v</span> {m.away}
+                      <MatchName home={m.home} away={m.away} homeId={m.homeId} awayId={m.awayId} size={20} />
                     </span>
                     <span
                       className="font-mono text-[11px] font-medium sm:text-[12.5px]"
@@ -142,7 +143,7 @@ export default async function LeaguePage({ params }: { params: Promise<{ code: s
                     style={{ background: i % 2 ? "transparent" : "rgba(255,255,255,.015)" }}
                   >
                     <span className="w-[26px] text-[var(--oasis-text-dim)]">{i + 1}</span>
-                    <span className="flex-1 text-[13px] font-bold">{row.team}</span>
+                    <span className="flex flex-1 items-center gap-[8px] text-[13px] font-bold"><TeamLogo id={row.teamId} size={18} />{row.team}</span>
                     <span className="w-7 text-right text-[var(--oasis-text-muted)]">{row.played}</span>
                     <span className="w-[38px] text-right text-[var(--oasis-text-muted)]">{row.goalDiff}</span>
                     <span className="w-9 text-right">{row.points}</span>

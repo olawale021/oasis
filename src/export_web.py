@@ -173,6 +173,8 @@ def build_matches(predictions: dict, missing_counts: dict, outcome_models: dict,
                 "lg": code,
                 "home": p["home"],
                 "away": p["away"],
+                "homeId": p["home_team_id"],
+                "awayId": p["away_team_id"],
                 "ko": _ko_label(p["kickoff_utc"]),
                 "h": p["p_home"],
                 "d": p["p_draw"],
@@ -245,6 +247,7 @@ def build_standings(conn, league_cfg: dict) -> list:
         rows.append(
             {
                 "team": names.get(t, f"team {t}"),
+                "teamId": t,
                 "played": s["played"],
                 "goalDiff": f"{gd:+d}".replace("-", "−") if gd else "0",
                 "points": s["points"],
@@ -482,7 +485,7 @@ def build_recent_results(conn, retro_probs: dict = None, days: int = 7) -> list:
     rows = conn.execute(
         f"""
         SELECT f.fixture_id, f.league_id, f.kickoff_utc, f.home_goals, f.away_goals,
-               th.name AS home, ta.name AS away,
+               th.name AS home, ta.name AS away, f.home_team_id, f.away_team_id,
                lp.p_home, lp.p_draw, lp.p_away, lp.correct, lp.log_loss,
                lp.model_version, lp.stage, lp.settled_at
         FROM fixtures f
@@ -522,6 +525,8 @@ def build_recent_results(conn, retro_probs: dict = None, days: int = 7) -> list:
                 "lg": code_by_id[r["league_id"]],
                 "home": r["home"],
                 "away": r["away"],
+                "homeId": r["home_team_id"],
+                "awayId": r["away_team_id"],
                 "kickoffUtc": r["kickoff_utc"],
                 "ko": _ko_label(r["kickoff_utc"]),
                 "score": f"{r['home_goals']}–{r['away_goals']}",

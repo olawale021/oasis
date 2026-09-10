@@ -6,6 +6,7 @@ import { AlertToggle } from "@/components/match/alert-toggle";
 import { getMatchById, utcClock } from "@/lib/data";
 import { getLive } from "@/lib/live-server";
 import { deriveMatch } from "@/lib/derive";
+import { MatchName, TeamLogo } from "@/components/team-logo";
 
 export const dynamic = "force-dynamic";
 
@@ -56,7 +57,7 @@ export default async function MatchDetailPage({ params }: { params: Promise<{ id
           ← Board
         </Link>
         <span className="text-[18px] font-bold leading-none tracking-[-0.02em] sm:text-[21px]">
-          {m.home} <span className="font-medium text-[var(--oasis-text-faint)]">v</span> {m.away}
+          <MatchName home={m.home} away={m.away} homeId={m.homeId} awayId={m.awayId} size={26} />
         </span>
         <span className="font-mono text-[11.5px] font-medium text-[var(--oasis-text-muted)]">
           {m.leagueName} · {m.ko} UTC{m.round ? ` · ${m.round}` : ""}
@@ -279,7 +280,7 @@ export default async function MatchDetailPage({ params }: { params: Promise<{ id
               AVAILABILITY
             </div>
             <div className="flex justify-between text-[12.5px] font-semibold">
-              <span>{m.home}</span>
+              <span className="flex items-center gap-[7px]"><TeamLogo id={m.homeId} size={18} />{m.home}</span>
               <span
                 className="font-mono text-[11.5px] font-medium"
                 style={{ color: m.missingHome === 0 ? "var(--oasis-positive)" : "var(--oasis-warn)" }}
@@ -288,7 +289,7 @@ export default async function MatchDetailPage({ params }: { params: Promise<{ id
               </span>
             </div>
             <div className="flex justify-between text-[12.5px] font-semibold">
-              <span>{m.away}</span>
+              <span className="flex items-center gap-[7px]"><TeamLogo id={m.awayId} size={18} />{m.away}</span>
               <span
                 className="font-mono text-[11.5px] font-medium"
                 style={{ color: m.missingAway === 0 ? "var(--oasis-positive)" : "var(--oasis-warn)" }}

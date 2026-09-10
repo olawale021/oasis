@@ -24,6 +24,8 @@ export interface MatchRecord {
   lg: LeagueCode;
   home: string;
   away: string;
+  homeId: number;
+  awayId: number;
   ko: string;
   h: number;
   d: number;
@@ -69,6 +71,7 @@ export interface DerivedMatch extends MatchRecord {
 
 export interface StandingsRow {
   team: string;
+  teamId: number;
   played: number;
   goalDiff: string;
   points: number;
@@ -149,6 +152,8 @@ export interface RecentResult {
   lg: LeagueCode;
   home: string;
   away: string;
+  homeId: number;
+  awayId: number;
   kickoffUtc: string;
   ko: string;
   score: string;

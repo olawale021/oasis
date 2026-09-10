@@ -7,6 +7,7 @@ import { LEAGUE_CODES, LEAGUE_NAMES, utcClock, utcDayLabel } from "@/lib/data";
 import type { LiveData } from "@/lib/data";
 import { deriveMatch, sortByKickoff } from "@/lib/derive";
 import type { DerivedMatch, LeagueFilter } from "@/lib/types";
+import { MatchName } from "@/components/team-logo";
 
 const DAY_TABS = ["Today", "Tomorrow", "Week", "Results"] as const;
 type DayTab = (typeof DAY_TABS)[number];
@@ -251,7 +252,7 @@ export function HomeConsole({ live }: { live: LiveData }) {
                 >
                   <span className="flex flex-col gap-[3px] md:w-[270px] md:gap-[4px] md:pr-4">
                     <span className="text-[15px] font-bold tracking-[-0.01em] md:text-[17.5px]">
-                      {m.home} <span className="font-medium text-[var(--oasis-text-faint)]">v</span> {m.away}
+                      <MatchName home={m.home} away={m.away} homeId={m.homeId} awayId={m.awayId} size={22} />
                     </span>
                     <span
                       className="font-mono text-[11px] font-medium md:text-[12.5px]"
@@ -579,7 +580,7 @@ function ResultsList({ rows }: { rows: import("@/lib/types").RecentResult[] }) {
             <div className="flex flex-col gap-[10px] border-b border-[var(--oasis-border-row)] px-1 py-3 md:flex-row md:items-center md:gap-0 md:py-[14px]">
               <span className="flex flex-col gap-[3px] md:w-[270px] md:gap-[4px] md:pr-4">
                 <span className="text-[15px] font-bold tracking-[-0.01em] md:text-[17.5px]">
-                  {r.home} <span className="font-medium text-[var(--oasis-text-faint)]">v</span> {r.away}
+                  <MatchName home={r.home} away={r.away} homeId={r.homeId} awayId={r.awayId} size={22} />
                 </span>
                 <span className="font-mono text-[11px] font-medium text-[var(--oasis-text-muted)] md:text-[12.5px]">
                   {LEAGUE_NAMES[r.lg]} · {r.ko} UTC{r.locked ? ` · ${r.locked.modelVersion}` : ""}

@@ -4,6 +4,7 @@ import Link from "next/link";
 import { LEAGUE_NAMES, utcClock } from "@/lib/data";
 import type { LiveData } from "@/lib/data";
 import { deriveMatch, sortByKickoff } from "@/lib/derive";
+import { MatchName } from "@/components/team-logo";
 
 export function EditorialConsole({ live }: { live: LiveData }) {
   // Highest-conviction forecast first: largest gap between best and worst outcome.
@@ -90,7 +91,7 @@ export function EditorialConsole({ live }: { live: LiveData }) {
           >
             <span className="flex flex-1 flex-col gap-[3px]">
               <span className="text-[15px] font-bold tracking-[-0.01em]">
-                {m.home} <span className="font-medium text-[var(--oasis-text-faint)]">v</span> {m.away}
+                <MatchName home={m.home} away={m.away} homeId={m.homeId} awayId={m.awayId} size={20} />
               </span>
               <span
                 className="font-mono text-[10.5px] font-medium"
