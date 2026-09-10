@@ -193,6 +193,12 @@ python3 src/ingest_squad_values.py [--dry-run]            # Transfermarkt squad 
   statistics ingested for Serie A and MLS from 2022). Candidate
   `deployed_xg`, fair only on folds with data: `--folds 2024-2025`.
 
+* **Player-based strength** (`player_ratings.py`): adjusted plus-minus
+  ridge on starter indicators, monthly point-in-time checkpoints, summed
+  over the regular XI (`xi_strength_diff`). First version: PL -0.0007,
+  LAL/BUN flat -> below the floor, not shipped. Artifacts
+  `data/models/player_ratings_{code}.json`; SEA lineups only 2017-18, MLS none.
+
 Paired tests: `python3 src/rolling_backtest.py --league pl --only deployed,deployed_value`.
 
 ## Live predictions
