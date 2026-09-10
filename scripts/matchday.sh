@@ -1,14 +1,45 @@
 #!/usr/bin/env bash
 # Matchday chain (PRD 11 + 13): odds snapshots -> results -> predictions ->
 # lock -> settle -> web export. Safe to run any time; every step is
-# idempotent. Hourly cron recommended on matchdays:
-#   0 * * * * ./scripts/matchday.sh >> data/status/matchday.log 2>&1
-set -e
+# idempotent. Runs hourly from cron on the droplet (scripts/server/):
+#   0 * * * * cd <repo> && ./scripts/matchday.sh >> data/status/matchday.log 2>&1
+#
+# Whatever happens, the EXIT trap records the run in data/status/runs.jsonl
+# and pushes an ops snapshot to KV so /admin can show the failure.
+set -eo pipefail
 cd "$(dirname "$0")/.."
-.venv/bin/python src/ingest_odds.py
-.venv/bin/python src/ingest_fixtures.py --league-ids 39,140,135,78,253 --seasons 2026 --force-refresh
-.venv/bin/python src/predict.py --horizon-days 8 > /dev/null
-.venv/bin/python src/lifecycle.py lock --window-minutes 70
-.venv/bin/python src/lifecycle.py settle
-.venv/bin/python src/export_web.py
-cd web && npx wrangler kv key put live --path src/data/live.json --binding LIVE_KV --remote && echo "matchday chain complete + KV updated $(date -u +%H:%M) UTC"
+PY=.venv/bin/python
+START=$(date +%s)
+STEP=""
+mkdir -p data/status
+
+finish() {
+  local rc=$?
+  local dur=$(( $(date +%s) - START ))
+  local ts; ts=$(date -u +%FT%TZ)
+  if [[ $rc -eq 0 ]]; then
+    printf '{"ts":"%s","ok":true,"failed_step":null,"duration_s":%d}\n' "$ts" "$dur" >> data/status/runs.jsonl
+    $PY src/export_ops.py --run-ok --duration "$dur" || true
+  else
+    printf '{"ts":"%s","ok":false,"failed_step":"%s","duration_s":%d}\n' "$ts" "$STEP" "$dur" >> data/status/runs.jsonl
+    $PY src/export_ops.py --run-failed "$STEP" --duration "$dur" || true
+  fi
+  ( cd web && npx wrangler kv key put ops --path src/data/ops.json --binding LIVE_KV --remote 2>&1 | grep -v -E 'Metrics|^\s*$' | grep -i -E 'error|fail' ) || true
+  if [[ $rc -eq 0 ]]; then
+    echo "matchday chain complete + KV updated (${dur}s) $(date -u +%H:%M) UTC"
+  else
+    echo "matchday chain FAILED at ${STEP} (${dur}s) $(date -u +%H:%M) UTC"
+  fi
+  exit $rc
+}
+trap finish EXIT
+
+run() { STEP="$1"; shift; "$@"; }
+
+run ingest_odds     $PY src/ingest_odds.py
+run ingest_fixtures $PY src/ingest_fixtures.py --league-ids 39,140,135,78,253 --seasons 2026 --force-refresh
+run predict         $PY src/predict.py --horizon-days 8 > /dev/null
+run lock            $PY src/lifecycle.py lock --window-minutes 70
+run settle          $PY src/lifecycle.py settle
+run export_web      $PY src/export_web.py
+run kv_push bash -c 'cd web && npx wrangler kv key put live --path src/data/live.json --binding LIVE_KV --remote 2>&1 | grep -v -E "Metrics|^\s*$" | grep -i -E "error|fail|Writing"'

@@ -22,3 +22,26 @@ export const getLive = cache(async (): Promise<LiveData> => {
   }
   return fallback as unknown as LiveData;
 });
+
+import opsFallback from "@/data/ops.json";
+import type { OpsData } from "./ops";
+
+/** Ops snapshot for /admin: KV key "ops", pushed by the matchday chain's
+ * EXIT trap. Short cache so a failed run shows within a minute. Falls back
+ * to the JSON bundled at build time (dev / KV empty). */
+export const getOps = cache(async (): Promise<OpsData> => {
+  try {
+    const { getCloudflareContext } = await import("@opennextjs/cloudflare");
+    const { env } = getCloudflareContext();
+    const kv = (env as Record<string, unknown>).LIVE_KV as
+      | { get: (key: string, opts: { type: "json"; cacheTtl?: number }) => Promise<OpsData | null> }
+      | undefined;
+    if (kv) {
+      const data = await kv.get("ops", { type: "json", cacheTtl: 60 });
+      if (data) return data;
+    }
+  } catch {
+    // fall through
+  }
+  return opsFallback as unknown as OpsData;
+});
