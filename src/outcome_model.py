@@ -1,5 +1,6 @@
 import json
 import math
+import struct
 from pathlib import Path
 
 import goals_model
@@ -36,6 +37,13 @@ def _gbm_margins(sample: dict, model: dict) -> list:
     return margins
 
 
+def _f32(v: float) -> float:
+    """Round to the nearest float32, as sklearn does to X before it walks a
+    tree (check_array(dtype=float32)); thresholds stay float64. Without this
+    a feature within one float32 ulp of a split can take the other branch."""
+    return struct.unpack("f", struct.pack("f", v))[0]
+
+
 def predict_proba(sample: dict, model: dict) -> tuple:
     model_type = model.get("type", "multinomial_logistic")
 
@@ -68,6 +76,30 @@ def predict_proba(sample: dict, model: dict) -> tuple:
         nu = model["nu"]
         denom = pi_h + 1.0 + nu * math.sqrt(pi_h)
         return (pi_h / denom, nu * math.sqrt(pi_h) / denom, 1.0 / denom)
+    if model_type == "random_forest":
+        # scikit-learn RandomForestClassifier exported by forest_train.py:
+        # probability = mean over trees of the leaf's class fractions, then
+        # a scalar temperature (p ** 1/T, renormalised). Flat per-tree arrays
+        # (left/right child, feature index, threshold, leaf value) so a JSON
+        # artifact walks in pure Python with no sklearn at serving time.
+        x = tuple(_f32(sample[name]) for name in model["features"])
+        acc = [0.0, 0.0, 0.0]
+        for t in model["trees"]:
+            left, right, feat, thr = t["left"], t["right"], t["feature"], t["threshold"]
+            n = 0
+            while left[n] != -1:
+                n = left[n] if x[feat[n]] <= thr[n] else right[n]
+            v = t["value"][n]
+            acc[0] += v[0]
+            acc[1] += v[1]
+            acc[2] += v[2]
+        n_trees = float(len(model["trees"]))
+        p = [max(a / n_trees, 1e-9) for a in acc]
+        temperature = model.get("temperature", 1.0)
+        if temperature != 1.0:
+            p = [pi ** (1.0 / temperature) for pi in p]
+        total = sum(p)
+        return p[0] / total, p[1] / total, p[2] / total
     if model_type == "dc_outcome":
         goals = model["goals"]
         mu_h, mu_a = goals_model.expected_goals(sample["home_team_id"], sample["away_team_id"], goals, sample.get("elo_diff", 0.0))

@@ -24,6 +24,8 @@ from datetime import datetime, timezone
 
 import backtest_common
 import config
+import forest_blend
+import forest_train
 import goals_train
 import leagues
 import metrics
@@ -65,6 +67,7 @@ def main() -> None:
 
     started = datetime.now(timezone.utc)
     blend_ws = latest_blend_ws()
+    forest_decisions = {c: d for c, d in forest_blend.latest_forest_decisions().items() if d.get("forest_endorsed")}
     splits = refold_splits(not args.no_current)
 
     league_buckets = {}
@@ -105,7 +108,19 @@ def main() -> None:
         league_artifact = outcome_train.build_artifact(spec["features"], buckets, decay=spec["decay"])
 
         w = blend_ws.get(code)
-        if w is not None:
+        forest_dec = forest_decisions.get(code)
+        if w is not None and forest_dec is not None:
+            # Forest endorsed by forest_blend.py's 5-fold harness: carry its
+            # fixed v into the live track. Same refold buckets; the forest
+            # never sees the calibrate season (forest_train protocol).
+            v = forest_dec["fixed_v"]
+            forest_live = forest_train.build_forest_artifact(spec["features"], buckets, decay=spec["decay"])
+            artifact = forest_blend.blend3_artifact(
+                league_artifact, global_live, forest_live, w, v,
+                f"blend{int(w * 100)}_global_rf{int(v * 100)}_{tag} "
+                f"[{round((1 - v) * w, 3)} x {spec['version']} + {round((1 - v) * (1 - w), 3)} x global15_{tag} + {v} x forest]",
+            )
+        elif w is not None:
             artifact = {
                 "type": "blend",
                 "label": f"blend{int(w * 100)}_global_{tag} [w={w} x {spec['version']} + {round(1 - w, 2)} x global15_{tag}]",
