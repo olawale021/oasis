@@ -22,7 +22,9 @@ export function deriveMatch(m: MatchRecord): DerivedMatch {
     edgeLabel: edge !== null ? `${edge > 0 ? "+" : ""}${edge.toFixed(1)}%` : "—",
     hot,
     statusConfirmed,
-    metaLabel: `${LEAGUE_NAMES[m.lg]} · ${m.ko} UTC · ${m.st}`,
+    // Stage text only when it carries news: "lineups confirmed" (green).
+    // The default "initial · lineups pending" is noise on every row.
+    metaLabel: `${LEAGUE_NAMES[m.lg]} · ${m.ko} UTC${statusConfirmed ? " · lineups confirmed" : ""}`,
   };
 }
 
