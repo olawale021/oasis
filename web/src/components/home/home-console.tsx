@@ -7,7 +7,7 @@ import { LEAGUE_CODES, LEAGUE_NAMES, utcClock, utcDayLabel } from "@/lib/data";
 import type { LiveData } from "@/lib/data";
 import { deriveMatch, sortByKickoff } from "@/lib/derive";
 import type { DerivedMatch, LeagueFilter } from "@/lib/types";
-import { MatchName } from "@/components/team-logo";
+import { MatchName, TeamSide } from "@/components/team-logo";
 
 const DAY_TABS = ["Today", "Tomorrow", "Week", "Results"] as const;
 type DayTab = (typeof DAY_TABS)[number];
@@ -70,7 +70,7 @@ export function HomeConsole({ live }: { live: LiveData }) {
   return (
     <div className="grid w-full grid-cols-1 lg:grid-cols-[212px_1fr_268px]">
       {/* Left rail */}
-      <div className="flex flex-col gap-[14px] border-b border-[var(--oasis-border)] bg-[var(--oasis-bg-rail)] p-3 lg:gap-[22px] lg:border-b-0 lg:border-r lg:p-4">
+      <div className="flex min-w-0 flex-col gap-[14px] border-b border-[var(--oasis-border)] bg-[var(--oasis-bg-rail)] p-3 lg:gap-[22px] lg:border-b-0 lg:border-r lg:p-4">
         <div className="flex flex-col gap-2">
           <div className="font-mono text-[10px] font-semibold tracking-[0.1em] text-[var(--oasis-text-dim)]">
             LEAGUES
@@ -202,10 +202,13 @@ export function HomeConsole({ live }: { live: LiveData }) {
 
         {dayTab !== "Results" && (<>
         <div className="flex items-center border-b border-[var(--oasis-border)] px-1 pb-[9px] font-mono text-[10px] font-semibold tracking-[0.09em] text-[var(--oasis-text-dim)] sm:text-[10.5px]">
-          <span className="hidden md:block md:w-[270px]">MATCH</span>
-          <span className="flex flex-1 items-center gap-[14px]">
-            <span className="hidden md:inline">WIN PROBABILITY</span>
-            <ProbabilityLegend />
+          <span className="flex flex-1 items-center gap-[14px] md:pr-[18px]">
+            <span className="hidden text-right md:block md:w-[160px]">HOME</span>
+            <span className="flex flex-1 items-center gap-[14px] md:justify-center">
+              <span className="hidden md:inline">WIN PROBABILITY</span>
+              <ProbabilityLegend />
+            </span>
+            <span className="hidden md:block md:w-[160px]">AWAY</span>
           </span>
           <span className="hidden w-[100px] text-right md:block">LIKELY SCORE</span>
           <span className="relative flex w-[70px] items-center justify-end gap-[5px]">
@@ -250,19 +253,24 @@ export function HomeConsole({ live }: { live: LiveData }) {
                   onClick={() => setExpanded(isOpen ? null : m.id)}
                   className="flex w-full flex-col gap-[10px] px-1 py-3 text-left md:flex-row md:items-center md:gap-0 md:py-[14px]"
                 >
-                  <span className="flex flex-col gap-[3px] md:w-[270px] md:gap-[4px] md:pr-4">
-                    <span className="text-[15px] font-bold tracking-[-0.01em] md:text-[17.5px]">
-                      <MatchName home={m.home} away={m.away} homeId={m.homeId} awayId={m.awayId} size={22} />
+                  <span className="flex w-full min-w-0 items-center gap-[10px] md:w-auto md:flex-1 md:gap-[14px] md:pr-[18px]">
+                    <TeamSide
+                      id={m.homeId} name={m.home} side="home" size={24}
+                      className="w-[29%] text-[13px] font-bold tracking-[-0.01em] md:w-[160px] md:text-[15px]"
+                    />
+                    <span className="flex min-w-0 flex-1 flex-col gap-[4px]">
+                      <ProbabilityBar home={m.h} draw={m.d} away={m.a} height={26} labeled className="w-full" />
+                      <span
+                        className="w-full text-center font-mono text-[10.5px] font-medium leading-[1.35] md:text-[11.5px]"
+                        style={{ color: m.statusConfirmed ? "var(--oasis-positive)" : "var(--oasis-text-muted)" }}
+                      >
+                        {m.metaLabel}
+                      </span>
                     </span>
-                    <span
-                      className="font-mono text-[11px] font-medium md:text-[12.5px]"
-                      style={{ color: m.statusConfirmed ? "var(--oasis-positive)" : "var(--oasis-text-muted)" }}
-                    >
-                      {m.metaLabel}
-                    </span>
-                  </span>
-                  <span className="flex w-full items-center md:w-auto md:flex-1 md:pr-[18px]">
-                    <ProbabilityBar home={m.h} draw={m.d} away={m.a} height={26} labeled className="w-full md:max-w-[440px]" />
+                    <TeamSide
+                      id={m.awayId} name={m.away} side="away" size={24}
+                      className="w-[29%] text-[13px] font-bold tracking-[-0.01em] md:w-[160px] md:text-[15px]"
+                    />
                   </span>
                   <span className="flex w-full items-center justify-between md:contents">
                     <span

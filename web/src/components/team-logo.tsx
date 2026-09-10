@@ -33,3 +33,22 @@ export function MatchName({
     </span>
   );
 }
+
+/** One side of a fixture for the home | gauge | away layout: crest hugging
+ * the gauge, name truncating away from it. */
+export function TeamSide({
+  id, name, side, size = 22, className,
+}: { id: number; name: string; side: "home" | "away"; size?: number; className?: string }) {
+  return (
+    <span
+      className={cn(
+        "flex min-w-0 shrink-0 items-center gap-[8px]",
+        side === "home" ? "flex-row-reverse text-right" : "flex-row text-left",
+        className,
+      )}
+    >
+      <TeamLogo id={id} size={size} />
+      <span className="min-w-0 truncate">{name}</span>
+    </span>
+  );
+}
