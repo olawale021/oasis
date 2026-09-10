@@ -39,7 +39,11 @@ if ! id -u "$APP_USER" >/dev/null 2>&1; then
 fi
 install -d -m 700 -o "$APP_USER" -g "$APP_USER" "/home/${APP_USER}/.ssh"
 # Let the laptop's ssh key (already on root) reach the app user for rsync.
-install -m 600 -o "$APP_USER" -g "$APP_USER" /root/.ssh/authorized_keys "/home/${APP_USER}/.ssh/authorized_keys"
+if [[ -s /root/.ssh/authorized_keys ]]; then
+  install -m 600 -o "$APP_USER" -g "$APP_USER" /root/.ssh/authorized_keys "/home/${APP_USER}/.ssh/authorized_keys"
+else
+  echo "WARNING: no /root/.ssh/authorized_keys -- run 'ssh-copy-id root@<ip>' from the laptop first, then re-run, or sync-data.sh cannot log in as ${APP_USER}." >&2
+fi
 
 run_as() { sudo -u "$APP_USER" -H bash -c "$*"; }
 
