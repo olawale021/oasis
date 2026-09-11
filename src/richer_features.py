@@ -252,6 +252,9 @@ class PlayerStrengthStore:
 
     def __init__(self):
         self._checkpoints = []  # [(date_str, {player_id: rating})]
+        # Final stage only: rate the CONFIRMED eleven when lineup rows exist
+        # for the fixture. Training and the initial stage use the regular XI.
+        self.prefer_actual = False
 
     def load(self, artifact: dict = None) -> None:
         if not artifact:
@@ -268,18 +271,22 @@ class PlayerStrengthStore:
                 break
         return best or {}
 
-    def xi_strength(self, team_id: int, before, squad_store: "SquadDisruptionStore") -> float | None:
+    def xi_strength(self, team_id: int, before, squad_store: "SquadDisruptionStore", fixture_id: int = None) -> float | None:
         if not self._checkpoints:
             return None
-        xi = squad_store._regular_xi(team_id, before)
+        xi = None
+        if self.prefer_actual and fixture_id is not None:
+            xi = squad_store.fixture_starters(fixture_id, team_id)
+        if not xi:
+            xi = squad_store._regular_xi(team_id, before)
         if not xi:
             return None
         ratings = self._ratings_at(before)
         return sum(ratings.get(p, 0.0) for p in xi)
 
-    def diff(self, home_id: int, away_id: int, before, squad_store: "SquadDisruptionStore") -> dict:
-        h = self.xi_strength(home_id, before, squad_store)
-        a = self.xi_strength(away_id, before, squad_store)
+    def diff(self, home_id: int, away_id: int, before, squad_store: "SquadDisruptionStore", fixture_id: int = None) -> dict:
+        h = self.xi_strength(home_id, before, squad_store, fixture_id)
+        a = self.xi_strength(away_id, before, squad_store, fixture_id)
         if h is None or a is None:
             return {"xi_strength_diff": 0.0}
         return {"xi_strength_diff": h - a}
@@ -306,7 +313,7 @@ def richer_match_features(
     feats.update(missing_index.diff(fixture_id, home_id, away_id))
     feats.update(squad_store.match_disruption_diff(fixture_id, home_id, away_id, before))
     feats.update((value_store or SquadValueStore()).diff(fixture_id, home_id, away_id))
-    feats.update((strength_store or PlayerStrengthStore()).diff(home_id, away_id, before, squad_store))
+    feats.update((strength_store or PlayerStrengthStore()).diff(home_id, away_id, before, squad_store, fixture_id))
     return feats
 
 

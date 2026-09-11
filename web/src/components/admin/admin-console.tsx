@@ -13,6 +13,7 @@ const HB: Record<Heartbeat, { label: string; dot: string; text: string; blurb: s
 };
 
 const LOCK: Record<LockState, { label: string; cls: string }> = {
+  final:   { label: "final",   cls: "text-[var(--oasis-home)] border-[var(--oasis-home)]" },
   locked:  { label: "locked",  cls: "text-[var(--oasis-positive)] border-[var(--oasis-positive)]" },
   pending: { label: "pending", cls: "text-[var(--oasis-text-muted)] border-[var(--oasis-border-strong)]" },
   due:     { label: "due",     cls: "text-[var(--oasis-warn)] border-[var(--oasis-warn)]" },

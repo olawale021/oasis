@@ -179,7 +179,7 @@ CREATE INDEX IF NOT EXISTS idx_odds_snapshots_fixture ON odds_snapshots (fixture
 -- probabilities, features, market snapshot, and model identity are frozen
 -- as they stood at lock time -- this is the public track record.
 CREATE TABLE IF NOT EXISTS locked_predictions (
-    fixture_id        INTEGER PRIMARY KEY REFERENCES fixtures(fixture_id),
+    fixture_id        INTEGER NOT NULL REFERENCES fixtures(fixture_id),
     league_code       TEXT NOT NULL,
     season            INTEGER NOT NULL,
     kickoff_utc       TEXT NOT NULL,
@@ -215,6 +215,8 @@ CREATE TABLE IF NOT EXISTS locked_predictions (
     brier             REAL,
     correct           INTEGER,
     settled_at        TEXT
+,
+    PRIMARY KEY (fixture_id, stage)
 );
 CREATE INDEX IF NOT EXISTS idx_locked_predictions_settled ON locked_predictions (settled_at);
 
@@ -240,3 +242,12 @@ CREATE TABLE IF NOT EXISTS tm_club_map (
     method       TEXT NOT NULL,
     mapped_at    TEXT NOT NULL
 );
+
+-- One row per fixture: the final-stage lock (confirmed lineups, ~25 min
+-- before kickoff) when it exists, else the initial lock. Every live metric
+-- and ledger reads this view; the raw table keeps both stages for comparison.
+CREATE VIEW IF NOT EXISTS locked_effective AS
+SELECT lp.* FROM locked_predictions lp
+WHERE lp.stage = CASE
+    WHEN EXISTS (SELECT 1 FROM locked_predictions x WHERE x.fixture_id = lp.fixture_id AND x.stage = 'final') THEN 'final'
+    ELSE 'initial' END;

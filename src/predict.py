@@ -105,7 +105,7 @@ def build_why(feats: dict, p: tuple) -> str:
     return "; ".join(parts)
 
 
-def predict_league(conn, league_cfg: dict, horizon_days: int) -> tuple:
+def predict_league(conn, league_cfg: dict, horizon_days: int, fixture_ids: set = None, stage: str = "initial") -> tuple:
     """Predict one league's upcoming fixtures. Returns (predictions,
     model_info, registry_info). Raises FileNotFoundError if the league's
     artifacts don't exist yet."""
@@ -130,6 +130,7 @@ def predict_league(conn, league_cfg: dict, horizon_days: int) -> tuple:
     value_store.load(db.get_squad_values_by_league(conn, [target_id]))
     strength_store = richer_features.PlayerStrengthStore()
     strength_store.load(richer_features.load_player_ratings(next(c for c, v in leagues.TARGETS.items() if v["league_id"] == target_id)))
+    strength_store.prefer_actual = stage == "final"  # confirmed XI once lineups are in
     squad_store = richer_features.SquadDisruptionStore()
     squad_store.load(db.get_lineup_players_by_league(conn, [target_id]))
 
@@ -152,6 +153,8 @@ def predict_league(conn, league_cfg: dict, horizon_days: int) -> tuple:
     goals = goals_model.load_model(goals_path)
 
     upcoming = load_upcoming(conn, target_id, horizon_days)
+    if fixture_ids is not None:
+        upcoming = [r for r in upcoming if r["fixture_id"] in fixture_ids]
     market = db.get_market_outcome_probs(conn, [r["fixture_id"] for r in upcoming])
 
     predictions = []
@@ -217,7 +220,7 @@ def predict_league(conn, league_cfg: dict, horizon_days: int) -> tuple:
                 "btts": round(p_btts * 100, 1),
                 "confidence": confidence_band(p_max),
                 "why": build_why(feats, (p_home, p_draw, p_away)),
-                "stage": "initial",  # pre-lineup (PRD 13.1); no confirmed-XI signal yet
+                "stage": stage,  # initial = pre-lineup (PRD 13.1); final = confirmed XI (PRD 13.2)
                 "features": {k: round(v, 4) for k, v in feats.items()},
             }
         )
@@ -243,7 +246,8 @@ def predict_league(conn, league_cfg: dict, horizon_days: int) -> tuple:
     return predictions, model_info, registry_info
 
 
-def run_predictions(horizon_days: int = DEFAULT_HORIZON_DAYS, quiet: bool = False) -> dict:
+def run_predictions(horizon_days: int = DEFAULT_HORIZON_DAYS, quiet: bool = False, fixture_ids: set = None,
+                    stage: str = "initial", out_name: str = "predictions.json") -> dict:
     started = datetime.now(timezone.utc)
     conn = db.get_connection()
 
@@ -253,7 +257,7 @@ def run_predictions(horizon_days: int = DEFAULT_HORIZON_DAYS, quiet: bool = Fals
     for code in leagues.TARGETS:
         league_cfg = leagues.target_config(code)
         try:
-            league_preds, model_info, registry_info = predict_league(conn, league_cfg, horizon_days)
+            league_preds, model_info, registry_info = predict_league(conn, league_cfg, horizon_days, fixture_ids, stage)
         except FileNotFoundError as exc:
             if not quiet:
                 print(f"skipping {league_cfg['web_code']}: {exc}")
@@ -274,8 +278,11 @@ def run_predictions(horizon_days: int = DEFAULT_HORIZON_DAYS, quiet: bool = Fals
         "predictions": predictions,
     }
 
+    payload["stage"] = stage
     OUTPUTS_DIR.mkdir(parents=True, exist_ok=True)
-    (OUTPUTS_DIR / "predictions.json").write_text(json.dumps(payload, indent=2, ensure_ascii=False))
+    (OUTPUTS_DIR / out_name).write_text(json.dumps(payload, indent=2, ensure_ascii=False))
+    if stage != "initial":
+        return payload  # final-stage runs leave predictions.json and predict_status alone
 
     by_league = {}
     for p in predictions:

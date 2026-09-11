@@ -1,7 +1,7 @@
 /** Shape of web/src/data/ops.json, produced by src/export_ops.py at the end
  * of every matchday run and pushed to KV under "ops". */
 
-export type LockState = "locked" | "pending" | "due" | "missed";
+export type LockState = "final" | "locked" | "pending" | "due" | "missed";
 
 export interface OpsStep {
   key: string;

@@ -195,6 +195,31 @@ def build_freshness(conn, target_ids: list) -> dict:
     }
 
 
+def apply_final_locks(conn, predictions: dict) -> int:
+    """Once a fixture has a final-stage lock (confirmed lineups), the board
+    shows THAT forecast rather than the hourly pre-lineup one: probabilities,
+    scoreline, stage label and explanation are replaced in place."""
+    rows = conn.execute("SELECT * FROM locked_predictions WHERE stage = 'final' AND settled_at IS NULL").fetchall()
+    by_id = {r["fixture_id"]: r for r in rows}
+    n = 0
+    for p in predictions["predictions"]:
+        r = by_id.get(p["fixture_id"])
+        if not r:
+            continue
+        p.update({
+            "p_home": r["p_home"], "p_draw": r["p_draw"], "p_away": r["p_away"],
+            "likely_score": r["likely_score"], "over_2_5": r["over_2_5"], "btts": r["btts"],
+            "confidence": r["confidence"], "why": r["why"], "stage": "final · lineups confirmed",
+            "expected_goals": {"home": r["mu_home"], "away": r["mu_away"]},
+        })
+        try:
+            p["features"] = json.loads(r["features_json"])
+        except Exception:
+            pass
+        n += 1
+    return n
+
+
 def build_matches(predictions: dict, missing_counts: dict, outcome_models: dict, rounds: dict) -> list:
     out = []
     for p in predictions["predictions"]:
@@ -417,7 +442,7 @@ def build_backtest_sections(conn) -> dict:
     # ledger -- the real track record, prepended as it accumulates.
     live_rows = conn.execute(
         """
-        SELECT * FROM locked_predictions WHERE settled_at IS NOT NULL
+        SELECT * FROM locked_effective WHERE settled_at IS NOT NULL
         ORDER BY kickoff_utc DESC LIMIT ?
         """,
         (LEDGER_ROWS,),
@@ -441,13 +466,13 @@ def build_backtest_sections(conn) -> dict:
 
     live_stats = conn.execute(
         "SELECT COUNT(*) AS n, AVG(log_loss) AS ll, AVG(brier) AS brier, AVG(correct) AS acc"
-        " FROM locked_predictions WHERE settled_at IS NOT NULL"
+        " FROM locked_effective WHERE settled_at IS NOT NULL"
     ).fetchone()
-    n_locked = conn.execute("SELECT COUNT(*) FROM locked_predictions").fetchone()[0]
+    n_locked = conn.execute("SELECT COUNT(*) FROM locked_effective").fetchone()[0]
     # Market benchmark on the SAME settled matches: bookmaker consensus at
     # lock time (margin removed), never a model input.
     mkt_rows = conn.execute(
-        "SELECT outcome, market_p_home, market_p_draw, market_p_away, log_loss FROM locked_predictions"
+        "SELECT outcome, market_p_home, market_p_draw, market_p_away, log_loss FROM locked_effective"
         " WHERE settled_at IS NOT NULL AND market_p_home IS NOT NULL"
     ).fetchall()
     mkt_ll = model_ll_on_mkt = None
@@ -634,7 +659,7 @@ def build_recent_results(conn, retro_probs: dict = None, days: int = 7) -> list:
         FROM fixtures f
         JOIN teams th ON th.team_id = f.home_team_id
         JOIN teams ta ON ta.team_id = f.away_team_id
-        LEFT JOIN locked_predictions lp ON lp.fixture_id = f.fixture_id
+        LEFT JOIN locked_effective lp ON lp.fixture_id = f.fixture_id
         WHERE f.league_id IN ({marks}) AND f.status_short IN ('FT','AET','PEN')
           AND f.kickoff_utc >= datetime('now', ?)
         ORDER BY f.kickoff_utc DESC
@@ -731,6 +756,11 @@ def build_model_releases() -> list:
 def main() -> None:
     conn = db.get_connection()
     predictions = json.loads((predict.OUTPUTS_DIR / "predictions.json").read_text())
+    conn_final = db.get_connection()
+    n_final = apply_final_locks(conn_final, predictions)
+    conn_final.close()
+    if n_final:
+        print(f"{n_final} fixture(s) showing final-stage (confirmed lineup) forecasts")
 
     live_codes = set(predictions["models"].keys())
     target_ids = [cfg["league_id"] for cfg in leagues.TARGETS.values()]

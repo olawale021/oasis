@@ -235,7 +235,10 @@ def compute_values(fixtures: list, mapping: dict) -> list:
 def main() -> None:
     parser = argparse.ArgumentParser(description="Transfermarkt point-in-time squad values per fixture.")
     parser.add_argument("--dry-run", action="store_true", help="match clubs and report; write nothing")
+    parser.add_argument("--min-players", type=int, default=MIN_PLAYERS, help=f"coverage guard (default {MIN_PLAYERS})")
     args = parser.parse_args()
+    global MIN_PLAYERS
+    MIN_PLAYERS = args.min_players
     started = datetime.now(timezone.utc)
     conn = db.get_connection()
     db.init_db(conn)

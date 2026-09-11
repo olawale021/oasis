@@ -152,15 +152,15 @@ def ledger(conn) -> tuple[list, dict]:
                p_home, p_draw, p_away, confidence, market_p_home, market_p_draw, market_p_away,
                result_home, result_away, outcome, log_loss, brier, correct, settled_at,
                model_version
-        FROM locked_predictions ORDER BY kickoff_utc DESC LIMIT ?
+        FROM locked_effective ORDER BY kickoff_utc DESC LIMIT ?
         """,
         (LEDGER_ROWS,),
     ).fetchall()
     ledger_rows = [dict(r) for r in rows]
-    total = conn.execute("SELECT COUNT(*) FROM locked_predictions").fetchone()[0]
+    total = conn.execute("SELECT COUNT(*) FROM locked_effective").fetchone()[0]
     agg = conn.execute(
         "SELECT COUNT(*) n, AVG(log_loss) ll, AVG(brier) br, AVG(correct) acc"
-        " FROM locked_predictions WHERE settled_at IS NOT NULL"
+        " FROM locked_effective WHERE settled_at IS NOT NULL"
     ).fetchone()
     summary = {
         "locked": total,
@@ -178,7 +178,8 @@ def upcoming_locks(conn, now: datetime) -> list:
     already-kicked-off fixture from the last 6h), with the cron run expected
     to lock it: the first top-of-hour at or after kickoff - LOCK_WINDOW."""
     payload = _read_json(PREDICTIONS_PATH) or {"predictions": []}
-    locked_ids = {r[0] for r in conn.execute("SELECT fixture_id FROM locked_predictions")}
+    locked_ids = {r[0] for r in conn.execute("SELECT fixture_id FROM locked_predictions WHERE stage = 'initial'")}
+    final_ids = {r[0] for r in conn.execute("SELECT fixture_id FROM locked_predictions WHERE stage = 'final'")}
     horizon = now + timedelta(hours=UPCOMING_HOURS)
     lookback = now - timedelta(hours=6)
     out = []
@@ -190,7 +191,9 @@ def upcoming_locks(conn, now: datetime) -> list:
         run_at = lock_by.replace(minute=0, second=0, microsecond=0)
         if run_at < lock_by:
             run_at += timedelta(hours=1)
-        if p["fixture_id"] in locked_ids:
+        if p["fixture_id"] in final_ids:
+            state = "final"
+        elif p["fixture_id"] in locked_ids:
             state = "locked"
         elif ko < now:
             state = "missed"

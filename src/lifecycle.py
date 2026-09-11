@@ -46,8 +46,12 @@ LOCK_COLUMNS = [
 ]
 
 
-def lock(conn, window_minutes: int, dry_run: bool = False) -> list:
-    payload = json.loads((OUTPUTS_DIR / "predictions.json").read_text())
+def lock(conn, window_minutes: int, dry_run: bool = False, stage: str = "initial", source: str = "predictions.json") -> list:
+    """Freeze predictions from `source` for fixtures kicking off within the
+    window, one row per (fixture, stage). stage='initial' is the hourly
+    pre-lineup lock; stage='final' comes from final_stage.py once both
+    confirmed lineups are in (source predictions_final.json)."""
+    payload = json.loads((OUTPUTS_DIR / source).read_text())
     now = datetime.now(timezone.utc)
     horizon = now + timedelta(minutes=window_minutes)
     locked = []
@@ -56,7 +60,7 @@ def lock(conn, window_minutes: int, dry_run: bool = False) -> list:
         if not (now <= kickoff <= horizon):
             continue
         already = conn.execute(
-            "SELECT 1 FROM locked_predictions WHERE fixture_id = ?", (p["fixture_id"],)
+            "SELECT 1 FROM locked_predictions WHERE fixture_id = ? AND stage = ?", (p["fixture_id"], stage)
         ).fetchone()
         if already:
             continue
@@ -67,7 +71,7 @@ def lock(conn, window_minutes: int, dry_run: bool = False) -> list:
             "season": p["season"],
             "kickoff_utc": p["kickoff_utc"],
             "locked_at": now.isoformat(),
-            "stage": p["stage"],
+            "stage": stage,
             "home": p["home"],
             "away": p["away"],
             "p_home": p["p_home"],
@@ -140,14 +144,16 @@ def settle(conn) -> list:
 
 
 def status(conn) -> dict:
-    total = conn.execute("SELECT COUNT(*) FROM locked_predictions").fetchone()[0]
-    settled = conn.execute("SELECT COUNT(*) FROM locked_predictions WHERE settled_at IS NOT NULL").fetchone()[0]
+    total = conn.execute("SELECT COUNT(*) FROM locked_effective").fetchone()[0]
+    settled = conn.execute("SELECT COUNT(*) FROM locked_effective WHERE settled_at IS NOT NULL").fetchone()[0]
+    by_stage = {r[0]: r[1] for r in conn.execute("SELECT stage, COUNT(*) FROM locked_predictions GROUP BY stage")}
     live = conn.execute(
         "SELECT COUNT(*) AS n, AVG(log_loss) AS ll, AVG(brier) AS brier, AVG(correct) AS acc"
-        " FROM locked_predictions WHERE settled_at IS NOT NULL"
+        " FROM locked_effective WHERE settled_at IS NOT NULL"
     ).fetchone()
     return {
         "locked": total,
+        "by_stage": by_stage,
         "awaiting_result": total - settled,
         "settled": settled,
         "live_log_loss": round(live["ll"], 4) if live["ll"] is not None else None,
@@ -161,6 +167,8 @@ def main() -> None:
     sub = parser.add_subparsers(dest="command", required=True)
     p_lock = sub.add_parser("lock", help="Freeze predictions for fixtures kicking off soon")
     p_lock.add_argument("--window-minutes", type=int, default=30)
+    p_lock.add_argument("--stage", type=str, default="initial", choices=["initial", "final"])
+    p_lock.add_argument("--source", type=str, default="predictions.json", help="file under outputs/ to lock from")
     p_lock.add_argument("--dry-run", action="store_true")
     p_lock.add_argument("--db-path", type=Path, default=None)
     p_settle = sub.add_parser("settle", help="Attach results to locked fixtures and score them")
@@ -173,7 +181,7 @@ def main() -> None:
     db.init_db(conn)
 
     if args.command == "lock":
-        rows = lock(conn, args.window_minutes, dry_run=args.dry_run)
+        rows = lock(conn, args.window_minutes, dry_run=args.dry_run, stage=args.stage, source=args.source)
         tag = " (dry run)" if args.dry_run else ""
         for r in rows:
             print(

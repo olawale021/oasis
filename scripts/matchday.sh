@@ -47,6 +47,11 @@ fi
 if [[ "$(date -u +%H)" == "04" ]]; then
   run ingest_squad_values $PY src/ingest_squad_values.py
 fi
+# Player plus-minus ratings: refit monthly (1st, 06 UTC) from the lineup
+# history now accumulating here; needs numpy in the server venv.
+if [[ "$(date -u +%d%H)" == "0106" ]]; then
+  for lg in pl lal bun sea; do run player_ratings_$lg $PY src/player_ratings.py --league $lg; done
+fi
 # Injuries (1 call per league) and confirmed lineups (1 call per newly
 # played fixture; cached ones are skipped): daily, so missing-player and
 # expected-XI features stay current on the server.
