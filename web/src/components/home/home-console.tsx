@@ -554,12 +554,13 @@ function ResultsList({ rows }: { rows: import("@/lib/types").RecentResult[] }) {
   return (
     <>
       <div className="flex items-center border-b border-[var(--oasis-border)] px-1 pb-[9px] font-mono text-[10px] font-semibold tracking-[0.09em] text-[var(--oasis-text-dim)] sm:text-[10.5px]">
-        <span className="hidden text-right md:block md:w-[160px]">HOME</span>
-        <span className="flex-1 text-center">RESULT · LOCKED FORECAST</span>
-        <span className="hidden md:block md:w-[160px] md:pr-[18px]">AWAY</span>
-        <span className="flex flex-1 items-center gap-[14px]">
-          <span className="hidden md:inline">LOCKED PRE-KICKOFF PREDICTION</span>
-          <ProbabilityLegend />
+        <span className="flex flex-1 items-center gap-[14px] md:pr-[18px]">
+          <span className="hidden text-right md:block md:w-[160px]">HOME</span>
+          <span className="flex flex-1 items-center gap-[14px] md:justify-center">
+            <span className="hidden md:inline">LOCKED PRE-KICKOFF PREDICTION</span>
+            <ProbabilityLegend />
+          </span>
+          <span className="hidden md:block md:w-[160px]">AWAY</span>
         </span>
         <span className="hidden w-[80px] text-right md:block">FINAL</span>
         <span className="hidden w-[110px] text-right md:block">VERDICT</span>
