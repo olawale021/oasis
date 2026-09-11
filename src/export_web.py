@@ -57,6 +57,43 @@ FACTOR_LABELS = {
     "ew10_ga_diff": "Defensive record (long window)",
     "elo_trend_diff": "Rating momentum",
     "sched_strength_diff": "Schedule strength",
+    "value_diff": "Squad market value",
+    "xi_strength_diff": "Expected XI strength",
+    "rest_all_diff": "Rest advantage (all comps)",
+    "congestion_all_diff": "Fixture congestion (all comps)",
+    "xg_diff": "Expected goals for",
+    "xga_diff": "Expected goals against",
+    "corner_diff": "Corners",
+}
+
+# Plain-language meaning of each factor label, for hover text on the match page.
+FACTOR_GLOSSARY = {
+    "Team strength (Elo)": "Long-run rating from results, adjusted for margin and home advantage.",
+    "Recent form": "Points per game over the last five league matches.",
+    "Recent form (weighted)": "Points per game over recent matches, weighting the latest most.",
+    "Head-to-head": "Result history between these two clubs, trusted only after several meetings.",
+    "Attack output": "Goals scored per game recently, weighted to the latest matches.",
+    "Defensive record": "Goals conceded per game recently, weighted to the latest matches.",
+    "Shots on target": "Recent shots on target per game, home minus away.",
+    "Possession": "Recent possession share per game, home minus away.",
+    "Missing players": "Reported absences from the injury feed, home minus away.",
+    "Squad disruption": "Share of the regular eleven missing from the actual lineup (final stage only).",
+    "Rest advantage": "Days since each side's last league match.",
+    "Fixture congestion": "Matches played in the last fortnight, league only.",
+    "Rest advantage (all comps)": "Days since each side's last match in any competition.",
+    "Fixture congestion (all comps)": "Matches in the last fortnight including cups and Europe.",
+    "Home/away venue form": "Form at home for the home side versus away form for the visitors.",
+    "Learned rating margin (pi)": "Predicted goal margin from pi-ratings, a learned form-and-strength system.",
+    "Rated attack output (home)": "Home side's attack rating from the Berrar rating system.",
+    "Rated attack output (away)": "Away side's attack rating from the Berrar rating system.",
+    "Closed-door match": "Played without spectators.",
+    "Rating momentum": "How each side's Elo has moved over recent matches.",
+    "Schedule strength": "Average Elo of recent opponents.",
+    "Squad market value": "Log ratio of the two squads' Transfermarkt values as of kickoff, top 25 players each.",
+    "Expected XI strength": "Summed plus-minus ratings of each side's expected eleven, from lineup history.",
+    "Expected goals for": "Recent expected goals created per game, home minus away.",
+    "Expected goals against": "Recent expected goals conceded per game, home minus away.",
+    "Corners": "Recent corners per game, home minus away.",
 }
 
 
@@ -407,12 +444,25 @@ def build_backtest_sections(conn) -> dict:
         " FROM locked_predictions WHERE settled_at IS NOT NULL"
     ).fetchone()
     n_locked = conn.execute("SELECT COUNT(*) FROM locked_predictions").fetchone()[0]
+    # Market benchmark on the SAME settled matches: bookmaker consensus at
+    # lock time (margin removed), never a model input.
+    mkt_rows = conn.execute(
+        "SELECT outcome, market_p_home, market_p_draw, market_p_away, log_loss FROM locked_predictions"
+        " WHERE settled_at IS NOT NULL AND market_p_home IS NOT NULL"
+    ).fetchall()
+    mkt_ll = model_ll_on_mkt = None
+    if mkt_rows:
+        mkt_ll = sum(-math.log(max((r["market_p_home"], r["market_p_draw"], r["market_p_away"])[r["outcome"]] / 100.0, 1e-15)) for r in mkt_rows) / len(mkt_rows)
+        model_ll_on_mkt = sum(r["log_loss"] for r in mkt_rows) / len(mkt_rows)
     live_record = {
         "locked": n_locked,
         "settled": live_stats["n"],
         "log_loss": round(live_stats["ll"], 4) if live_stats["ll"] is not None else None,
         "brier": round(live_stats["brier"], 4) if live_stats["brier"] is not None else None,
         "accuracy": round(live_stats["acc"] * 100, 1) if live_stats["acc"] is not None else None,
+        "market_n": len(mkt_rows),
+        "market_log_loss": round(mkt_ll, 4) if mkt_ll is not None else None,
+        "model_log_loss_on_market": round(model_ll_on_mkt, 4) if model_ll_on_mkt is not None else None,
     }
 
     test_metrics = metrics.all_outcome_metrics(all_scored)
@@ -741,6 +791,7 @@ def main() -> None:
         "live_record": backtest["live_record"],
         "recent_results": build_recent_results(conn, backtest["retro_probs"]),
         "experiments": build_experiments(),
+        "factor_glossary": FACTOR_GLOSSARY,
     }
 
     WEB_DATA_DIR.mkdir(parents=True, exist_ok=True)

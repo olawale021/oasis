@@ -186,7 +186,12 @@ export default async function MatchDetailPage({ params }: { params: Promise<{ id
           </div>
           {m.factors.map((f) => (
             <div key={f.label} className="flex items-center gap-[10px]">
-              <span className="w-[104px] text-[11.5px] font-semibold sm:w-[132px] sm:text-[12.5px]">{f.label}</span>
+              <span
+                className="w-[104px] cursor-help text-[11.5px] font-semibold sm:w-[132px] sm:text-[12.5px]"
+                title={live.factor_glossary?.[f.label] ?? f.label}
+              >
+                {f.label}
+              </span>
               <span className="flex flex-1">
                 {f.weight >= 0 ? (
                   <>

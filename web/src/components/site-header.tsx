@@ -9,6 +9,7 @@ const NAV_LINKS = [
   { label: "Today", href: "/", match: (p: string) => p === "/" },
   { label: "Leagues", href: "/league/EPL", match: (p: string) => p.startsWith("/league") },
   { label: "Performance", href: "/performance", match: (p: string) => p.startsWith("/performance") },
+  { label: "Method", href: "/method", match: (p: string) => p.startsWith("/method") },
 ];
 
 export function SiteHeader({ generatedAt }: { generatedAt: string }) {
@@ -42,7 +43,6 @@ export function SiteHeader({ generatedAt }: { generatedAt: string }) {
               {link.label}
             </Link>
           ))}
-          <span className="cursor-default text-[var(--oasis-text-muted)]">Method</span>
           <span className="cursor-default text-[var(--oasis-text-muted)]">Pricing</span>
         </nav>
 
@@ -76,7 +76,6 @@ export function SiteHeader({ generatedAt }: { generatedAt: string }) {
             {link.label}
           </Link>
         ))}
-        <span className="cursor-default whitespace-nowrap text-[var(--oasis-text-muted)]">Method</span>
         <span className="cursor-default whitespace-nowrap text-[var(--oasis-text-muted)]">Pricing</span>
       </nav>
     </header>

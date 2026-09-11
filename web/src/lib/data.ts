@@ -41,9 +41,13 @@ export interface LiveData {
     log_loss: number | null;
     brier: number | null;
     accuracy: number | null;
+    market_n: number;
+    market_log_loss: number | null;
+    model_log_loss_on_market: number | null;
   };
   recent_results: RecentResult[];
   experiments: Experiment[];
+  factor_glossary: Record<string, string>;
 }
 
 export const LEAGUE_CODES: LeagueCode[] = ["EPL", "LAL", "SEA", "BUN", "MLS"];

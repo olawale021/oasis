@@ -7,7 +7,7 @@ import { LEAGUE_CODES, LEAGUE_NAMES, utcClock, utcDayLabel } from "@/lib/data";
 import type { LiveData } from "@/lib/data";
 import { deriveMatch, sortByKickoff } from "@/lib/derive";
 import type { DerivedMatch, LeagueFilter } from "@/lib/types";
-import { MatchName, TeamSide } from "@/components/team-logo";
+import { TeamSide } from "@/components/team-logo";
 
 const DAY_TABS = ["Today", "Tomorrow", "Week", "Results"] as const;
 type DayTab = (typeof DAY_TABS)[number];
@@ -398,8 +398,17 @@ export function HomeConsole({ live }: { live: LiveData }) {
             <span>{live.headline.ece.toFixed(3)}</span>
           </div>
           <div className="flex justify-between font-mono text-[12.5px] font-medium">
-            <span className="text-[var(--oasis-text-muted)]">vs market</span>
-            <span title="odds collection starts at launch">—</span>
+            <span className="text-[var(--oasis-text-muted)]">vs market (live)</span>
+            {live.live_record.market_log_loss != null && live.live_record.model_log_loss_on_market != null ? (
+              <span
+                title={`${live.live_record.market_n} settled locked predictions: model log loss vs bookmaker consensus at lock time`}
+                style={{ color: live.live_record.model_log_loss_on_market < live.live_record.market_log_loss ? "var(--oasis-positive)" : "var(--oasis-warn)" }}
+              >
+                {live.live_record.model_log_loss_on_market.toFixed(3)} v {live.live_record.market_log_loss.toFixed(3)}
+              </span>
+            ) : (
+              <span title="fills in once locked predictions settle; the backtest season has no archived odds">—</span>
+            )}
           </div>
           <div className="mt-[2px] flex h-[44px] items-end gap-[3px]" title="observed win rate by predicted-probability band">
             {live.calibration_bars.map((h, i) => (
@@ -545,7 +554,9 @@ function ResultsList({ rows }: { rows: import("@/lib/types").RecentResult[] }) {
   return (
     <>
       <div className="flex items-center border-b border-[var(--oasis-border)] px-1 pb-[9px] font-mono text-[10px] font-semibold tracking-[0.09em] text-[var(--oasis-text-dim)] sm:text-[10.5px]">
-        <span className="hidden md:block md:w-[270px]">MATCH</span>
+        <span className="hidden text-right md:block md:w-[160px]">HOME</span>
+        <span className="flex-1 text-center">RESULT · LOCKED FORECAST</span>
+        <span className="hidden md:block md:w-[160px] md:pr-[18px]">AWAY</span>
         <span className="flex flex-1 items-center gap-[14px]">
           <span className="hidden md:inline">LOCKED PRE-KICKOFF PREDICTION</span>
           <ProbabilityLegend />
@@ -565,21 +576,15 @@ function ResultsList({ rows }: { rows: import("@/lib/types").RecentResult[] }) {
               </div>
             )}
             <div className="flex flex-col gap-[10px] border-b border-[var(--oasis-border-row)] px-1 py-3 md:flex-row md:items-center md:gap-0 md:py-[14px]">
-              <span className="flex flex-col gap-[3px] md:w-[270px] md:gap-[4px] md:pr-4">
-                <span className="text-[15px] font-bold tracking-[-0.01em] md:text-[17.5px]">
-                  <MatchName home={r.home} away={r.away} homeId={r.homeId} awayId={r.awayId} size={22} />
-                </span>
-                <span className="font-mono text-[11px] font-medium text-[var(--oasis-text-muted)] md:text-[12.5px]">
-                  {LEAGUE_NAMES[r.lg]} · {r.ko} UTC{r.locked ? ` · ${r.locked.modelVersion}` : ""}
-                </span>
-              </span>
-              <span className="flex w-full flex-col gap-[3px] md:w-auto md:flex-1 md:pr-[18px]">
+              <span className="flex w-full min-w-0 items-center gap-[10px] md:w-auto md:flex-1 md:gap-[14px] md:pr-[18px]">
+                <TeamSide id={r.homeId} name={r.home} side="home" size={24} className="w-[29%] text-[13px] font-bold tracking-[-0.01em] md:w-[160px] md:text-[15px]" />
+                <span className="flex min-w-0 flex-1 flex-col gap-[4px]">
                 {r.locked ? (
-                  <ProbabilityBar home={r.locked.h} draw={r.locked.d} away={r.locked.a} height={26} labeled className="w-full max-w-[440px]" />
+                  <ProbabilityBar home={r.locked.h} draw={r.locked.d} away={r.locked.a} height={26} labeled className="w-full" />
                 ) : r.retro ? (
                   <>
                     <span className="opacity-70">
-                      <ProbabilityBar home={r.retro.h} draw={r.retro.d} away={r.retro.a} height={22} labeled className="flex w-full max-w-[440px]" />
+                      <ProbabilityBar home={r.retro.h} draw={r.retro.d} away={r.retro.a} height={22} labeled className="flex w-full" />
                     </span>
                     <span className="font-mono text-[10px] font-medium text-[var(--oasis-text-dim)]">
                       retrospective ({r.retro.modelVersion}, pre-match data only) — not locked before kickoff
@@ -590,6 +595,11 @@ function ResultsList({ rows }: { rows: import("@/lib/types").RecentResult[] }) {
                     no locked prediction — played before lock automation ran (locking live from 21 Aug 2026)
                   </span>
                 )}
+                <span className="w-full text-center font-mono text-[10.5px] font-medium leading-[1.35] text-[var(--oasis-text-muted)] md:text-[11.5px]">
+                  {LEAGUE_NAMES[r.lg]} · {r.ko} UTC{r.locked ? ` · ${r.locked.modelVersion}` : ""}
+                </span>
+                </span>
+                <TeamSide id={r.awayId} name={r.away} side="away" size={24} className="w-[29%] text-[13px] font-bold tracking-[-0.01em] md:w-[160px] md:text-[15px]" />
               </span>
               <span className="flex w-full items-center justify-between md:contents">
               <span className="font-mono text-[15px] font-bold md:w-[80px] md:text-right md:text-[16.5px]">
