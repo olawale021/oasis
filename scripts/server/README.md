@@ -34,10 +34,23 @@ From then on the server's DB is the source of truth. Do not re-run
 `sync-data.sh` without `--force`, and only after copying the server DB
 back if you want to keep its locked/settled ledger.
 
+## Cron on the droplet (user `oasis`)
+
+| When (UTC) | What |
+|---|---|
+| every hour :00 | `scripts/matchday.sh` -- odds, fixtures, predictions, initial lock (70 min), settle, export, KV |
+| :05, :15 ... :55 | `scripts/final_pass.sh` -- confirmed lineups inside 35 min -> final-stage lock -> re-export |
+| 02:30 | `scripts/server/backup-db.sh` -- SQLite snapshot to data/backups (keeps 14) |
+| 03:00, 15:00 | (inside matchday.sh) all-competition fixtures |
+| 04:00 | (inside matchday.sh) Transfermarkt squad values |
+| 05:00 | (inside matchday.sh) injuries + lineups |
+| 1st of month 06:00 | (inside matchday.sh) player plus-minus ratings refit |
+
 ## Day to day
 
 - Code change to the pipeline: `git push`, then `ssh oasis@<ip> 'cd oasis && git pull'`.
 - Retrained models: `./scripts/server/push-models.sh oasis@<ip>` (models + registry + reports, then a chain run).
-- Check health: `ssh oasis@<ip> 'cat oasis/data/status/predict_status.json'`.
+- Check health: the /admin page, or `ssh oasis@<ip> 'cat oasis/data/status/predict_status.json'`.
+- Fresh DB for a refit: `./scripts/server/pull-db.sh oasis@<ip>` (installs the newest nightly backup locally).
 - Secrets live in `oasis/.env` (API-Football) and `oasis/web/.env`
   (Cloudflare token + account id). Neither is in git.

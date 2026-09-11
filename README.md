@@ -275,6 +275,21 @@ pages show the serving version, the performance page shows the evaluation
 versions. Re-run `refold_live.py` after any methodology change ships on the
 evaluation track.
 
+## Final stage (PRD 13.2 -- confirmed lineups)
+
+```bash
+python3 src/final_stage.py --window-minutes 35     # scripts/final_pass.sh runs this every 10 min
+python3 src/lifecycle.py status                    # counts by stage; live metrics read locked_effective
+```
+
+`locked_predictions` holds one row per (fixture, stage). The hourly chain
+locks `initial` 70 min out; the final pass fetches lineups once a fixture
+is inside 35 min, and when both elevens are stored re-predicts with the
+actual XI (squad disruption; expected-XI strength where a league has
+player ratings) and locks `final`. The `locked_effective` view prefers the
+final row, and every live metric, the ledger and the board read it -- the
+initial row is kept so the two stages can be compared.
+
 ## Lock & settle (PRD 13.4/13.5 -- run the matchday chain hourly)
 
 ```bash
