@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
 import { Instrument_Sans, JetBrains_Mono } from "next/font/google";
+import { ClerkProvider } from "@clerk/nextjs";
+import { shadcn } from "@clerk/ui/themes";
 import { SiteHeader } from "@/components/site-header";
 import { getLive } from "@/lib/live-server";
 import "./globals.css";
@@ -30,8 +32,10 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
       className={`${instrumentSans.variable} ${jetBrainsMono.variable} h-full antialiased dark`}
     >
       <body className="flex min-h-full flex-col bg-[var(--oasis-bg)] text-[var(--oasis-text)]">
-        <SiteHeader generatedAt={live.generated_at} />
-        <main className="flex-1">{children}</main>
+        <ClerkProvider appearance={{ theme: shadcn }}>
+          <SiteHeader generatedAt={live.generated_at} />
+          <main className="flex-1">{children}</main>
+        </ClerkProvider>
       </body>
     </html>
   );

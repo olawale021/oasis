@@ -50,3 +50,22 @@ export function ProbabilityLegend() {
     </span>
   );
 }
+
+/** Placeholder rendered in place of a gauge the viewer is not entitled to
+ * see. Same footprint as ProbabilityBar so rows keep their layout. */
+export function LockedBar({ height = 9, className = "", label = "locked" }: { height?: number; className?: string; label?: string }) {
+  return (
+    <span
+      className={`flex min-w-0 items-center justify-center overflow-hidden rounded-[5px] font-mono text-[10.5px] font-semibold tracking-[0.08em] text-[var(--oasis-text-dim)] ${className}`}
+      style={{
+        height,
+        background:
+          "repeating-linear-gradient(135deg, var(--oasis-border-row) 0 6px, var(--oasis-surface-raised) 6px 12px)",
+        border: "1px solid var(--oasis-border)",
+      }}
+      title="Prediction locked for your access level"
+    >
+      {height >= 18 ? `🔒 ${label.toUpperCase()}` : ""}
+    </span>
+  );
+}

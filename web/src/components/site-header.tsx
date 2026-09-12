@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { Show, SignInButton, UserButton } from "@clerk/nextjs";
 import { usePathname } from "next/navigation";
 import { utcClock } from "@/lib/data";
 import { cn } from "@/lib/utils";
@@ -51,13 +52,25 @@ export function SiteHeader({ generatedAt }: { generatedAt: string }) {
             <span className="h-[6px] w-[6px] rounded-full bg-[var(--oasis-positive)]" />
             data {utcClock(generatedAt)} UTC
           </span>
-          <button
-            type="button"
+          <Link
+            href="/pricing"
             className="whitespace-nowrap rounded-[7px] bg-[var(--oasis-home)] px-[11px] py-[6px] text-[11.5px] font-bold text-[var(--oasis-home-ink)] sm:px-[13px] sm:py-[7px] sm:text-[12.5px]"
           >
             Get lifetime access
-          </button>
-          <span className="hidden h-7 w-7 rounded-full border border-[var(--oasis-border-strong)] bg-[var(--oasis-border)] sm:block" />
+          </Link>
+          <Show when="signed-out">
+            <SignInButton mode="modal">
+              <button
+                type="button"
+                className="whitespace-nowrap rounded-[7px] border border-[var(--oasis-border-strong)] px-[11px] py-[6px] text-[11.5px] font-semibold text-[var(--oasis-text-soft)] hover:text-[var(--oasis-text)] sm:px-[13px] sm:py-[7px] sm:text-[12.5px]"
+              >
+                Sign in
+              </button>
+            </SignInButton>
+          </Show>
+          <Show when="signed-in">
+            <UserButton />
+          </Show>
         </div>
       </div>
 

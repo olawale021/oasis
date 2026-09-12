@@ -2,7 +2,9 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import { ProbabilityBar, ProbabilityLegend } from "@/components/probability-bar";
+import { LockedBar, ProbabilityBar, ProbabilityLegend } from "@/components/probability-bar";
+import { UnlockCta } from "@/components/unlock-cta";
+import type { Tier } from "@/lib/viewer";
 import { LEAGUE_CODES, LEAGUE_NAMES, utcClock, utcDayLabel } from "@/lib/data";
 import type { LiveData } from "@/lib/data";
 import { deriveMatch, sortByKickoff } from "@/lib/derive";
@@ -10,21 +12,25 @@ import type { DerivedMatch, LeagueFilter } from "@/lib/types";
 import { TeamSide } from "@/components/team-logo";
 
 const DAY_TABS = ["Today", "Tomorrow", "Week", "Results"] as const;
+const TASTER_PER_DAY = 2;
 type DayTab = (typeof DAY_TABS)[number];
 
 function utcDayStamp(d: Date): string {
   return d.toISOString().slice(0, 10);
 }
 
-export function HomeConsole({ live }: { live: LiveData }) {
+export function HomeConsole({ live, tier }: { live: LiveData; tier: Tier }) {
+  const premium = tier === "premium";
   const [league, setLeague] = useState<LeagueFilter>("ALL");
   const [confirmedOnly, setConfirmedOnly] = useState(false);
   const [highConfOnly, setHighConfOnly] = useState(false);
   const [edgeOnly, setEdgeOnly] = useState(false);
   const [showEdgeInfo, setShowEdgeInfo] = useState(false);
-  // Default to the full horizon so the first render never depends on the
-  // clock (avoids SSR/client hydration drift); Today/Tomorrow filter on click.
-  const [dayTab, setDayTab] = useState<DayTab>("Week");
+  // Signed-out visitors land on settled predictions (the public track
+  // record); signed-in viewers land on the upcoming board. Neither default
+  // depends on the clock, so SSR and hydration agree; Today/Tomorrow filter
+  // on click.
+  const [dayTab, setDayTab] = useState<DayTab>(tier === "anon" ? "Results" : "Week");
   const [expanded, setExpanded] = useState<number | null>(null);
 
   const derived = useMemo(() => sortByKickoff(live.matches.map(deriveMatch)), []);
@@ -52,8 +58,11 @@ export function HomeConsole({ live }: { live: LiveData }) {
     return counts;
   }, [derived]);
 
+  // Public record = predictions locked before kickoff only. Retrospective
+  // reconstructions for matches played before lock automation ran are
+  // still in the payload for the ledger, but never shown as results here.
   const resultRows = useMemo(
-    () => live.recent_results.filter((r) => league === "ALL" || r.lg === league),
+    () => live.recent_results.filter((r) => r.locked !== null && (league === "ALL" || r.lg === league)),
     [league, live.recent_results],
   );
 
@@ -122,6 +131,8 @@ export function HomeConsole({ live }: { live: LiveData }) {
           </button>
           <button
             type="button"
+            disabled={!premium}
+            title={premium ? undefined : "Confidence filters are part of lifetime access"}
             onClick={() => setHighConfOnly((v) => !v)}
             className="cursor-pointer rounded-[7px] px-[10px] py-[6px] text-left text-[11.5px] font-semibold lg:py-[7px] lg:text-[12px]"
             style={
@@ -130,9 +141,9 @@ export function HomeConsole({ live }: { live: LiveData }) {
                 : { color: "var(--oasis-text-muted)", border: "1px solid var(--oasis-border)" }
             }
           >
-            {highConfOnly ? "High confidence ✓" : "High confidence"}
+            {highConfOnly ? "High confidence ✓" : premium ? "High confidence" : "High confidence 🔒"}
           </button>
-          {derived.some((m) => m.edge !== null) ? (
+          {premium && derived.some((m) => m.edge !== null) ? (
             <button
               type="button"
               onClick={() => setEdgeOnly((v) => !v)}
@@ -148,9 +159,9 @@ export function HomeConsole({ live }: { live: LiveData }) {
           ) : (
             <div
               className="rounded-[7px] border border-dashed border-[var(--oasis-border)] px-[10px] py-[6px] text-[11.5px] font-semibold text-[var(--oasis-text-dim)] lg:py-[7px] lg:text-[12px]"
-              title="No odds snapshots archived yet for these fixtures"
+              title={premium ? "No odds snapshots archived yet for these fixtures" : "Edge filter is part of lifetime access"}
             >
-              Edge ≥ 3% — needs odds
+              {premium ? "Edge ≥ 3% — needs odds" : "Edge ≥ 3% 🔒"}
             </div>
           )}
           </div>
@@ -198,6 +209,15 @@ export function HomeConsole({ live }: { live: LiveData }) {
           </span>
         </div>
 
+        {dayTab === "Results" && tier === "anon" && (
+          <div className="flex flex-col items-start gap-3 rounded-[9px] border border-[var(--oasis-border)] bg-[var(--oasis-surface)] p-3 sm:flex-row sm:items-center sm:gap-4">
+            <div className="flex-1 text-[12.5px] leading-[1.6] text-[var(--oasis-text-muted)]">
+              <span className="font-bold text-[var(--oasis-text)]">Every prediction below was locked before kickoff.</span>{" "}
+              Upcoming matches are under Today, Tomorrow and Week; a free account unlocks the {TASTER_PER_DAY} highest-confidence predictions each day.
+            </div>
+            <UnlockCta tier={tier} />
+          </div>
+        )}
         {dayTab === "Results" && <ResultsList rows={resultRows} />}
 
         {dayTab !== "Results" && (<>
@@ -259,7 +279,11 @@ export function HomeConsole({ live }: { live: LiveData }) {
                       className="w-[29%] text-[13px] font-bold tracking-[-0.01em] md:w-[160px] md:text-[15px]"
                     />
                     <span className="flex min-w-0 flex-1 flex-col gap-[4px]">
-                      <ProbabilityBar home={m.h} draw={m.d} away={m.a} height={26} labeled className="w-full" />
+                      {m.gated ? (
+                        <LockedBar height={26} className="w-full" label={tier === "anon" ? "sign in to unlock" : "lifetime access"} />
+                      ) : (
+                        <ProbabilityBar home={m.h} draw={m.d} away={m.a} height={26} labeled className="w-full" />
+                      )}
                       <span
                         className="w-full text-center font-mono text-[10.5px] font-medium leading-[1.35] md:text-[11.5px]"
                         style={{ color: m.statusConfirmed ? "var(--oasis-positive)" : "var(--oasis-text-muted)" }}
@@ -275,11 +299,11 @@ export function HomeConsole({ live }: { live: LiveData }) {
                   <span className="flex w-full items-center justify-between md:contents">
                     <span
                       className="flex flex-col md:w-[100px] md:items-end"
-                      title={`most likely ${m.pick === "draw" ? "scoreline" : `${m.pick}-win scoreline`} (overall mode ${m.score}, ${m.matrix.peakPct}%)`}
+                      title={m.gated ? "locked" : `most likely ${m.pick === "draw" ? "scoreline" : `${m.pick}-win scoreline`} (overall mode ${m.score}, ${m.matrix.peakPct}%)`}
                     >
-                      <span className="font-mono text-[14px] font-medium md:text-[15.5px]">{m.condScore}</span>
+                      <span className="font-mono text-[14px] font-medium md:text-[15.5px]">{m.gated ? "—" : m.condScore}</span>
                       <span className="font-mono text-[10.5px] font-medium text-[var(--oasis-text-dim)] md:text-[11.5px]">
-                        {Math.round(m.condPct)}% chance
+                        {m.gated ? "locked" : `${Math.round(m.condPct)}% chance`}
                       </span>
                     </span>
                     <span
@@ -306,7 +330,21 @@ export function HomeConsole({ live }: { live: LiveData }) {
                   </span>
                 </button>
 
-                {isOpen && (
+                {isOpen && m.gated && (
+                  <div className="mx-1 mb-[14px] flex flex-col items-start gap-3 rounded-[9px] border border-[var(--oasis-border)] bg-[var(--oasis-surface)] p-4 sm:flex-row sm:items-center">
+                    <div className="flex-1">
+                      <div className="text-[13.5px] font-bold">This prediction is locked</div>
+                      <div className="mt-[3px] text-[12.5px] leading-[1.6] text-[var(--oasis-text-muted)]">
+                        {tier === "anon"
+                          ? `A free account shows the ${TASTER_PER_DAY} highest-confidence predictions each day. Lifetime access shows every match.`
+                          : "Lifetime access shows every upcoming match, with likely scores, factors and market comparison."}
+                        {" "}Finished matches are always public under Results.
+                      </div>
+                    </div>
+                    <UnlockCta tier={tier} />
+                  </div>
+                )}
+                {isOpen && !m.gated && (
                   <div className="mx-1 mb-[14px] flex flex-col gap-4 rounded-[9px] border border-[var(--oasis-border)] bg-[var(--oasis-surface)] p-3 sm:flex-row sm:items-start sm:gap-6">
                     <div className="min-w-0 flex-1">
                       <div className="font-mono text-[10px] font-semibold tracking-[0.1em] text-[var(--oasis-text-dim)]">
@@ -370,12 +408,11 @@ export function HomeConsole({ live }: { live: LiveData }) {
               one-time purchase · quantity capped · opens at paid launch
             </div>
           </div>
-          <button
-            type="button"
-            className="rounded-[7px] bg-[var(--oasis-home)] px-[15px] py-[9px] text-[12.5px] font-bold text-[var(--oasis-home-ink)]"
-          >
-            Get notified
-          </button>
+          {premium ? (
+            <span className="font-mono text-[11.5px] font-bold text-[var(--oasis-positive)]">you&rsquo;re in ✓</span>
+          ) : (
+            <UnlockCta tier={tier} />
+          )}
         </div>
       </div>
 
@@ -580,21 +617,8 @@ function ResultsList({ rows }: { rows: import("@/lib/types").RecentResult[] }) {
               <span className="flex w-full min-w-0 items-center gap-[10px] md:w-auto md:flex-1 md:gap-[14px] md:pr-[18px]">
                 <TeamSide id={r.homeId} name={r.home} side="home" size={24} className="w-[29%] text-[13px] font-bold tracking-[-0.01em] md:w-[160px] md:text-[15px]" />
                 <span className="flex min-w-0 flex-1 flex-col gap-[4px]">
-                {r.locked ? (
+                {r.locked && (
                   <ProbabilityBar home={r.locked.h} draw={r.locked.d} away={r.locked.a} height={26} labeled className="w-full" />
-                ) : r.retro ? (
-                  <>
-                    <span className="opacity-70">
-                      <ProbabilityBar home={r.retro.h} draw={r.retro.d} away={r.retro.a} height={22} labeled className="flex w-full" />
-                    </span>
-                    <span className="font-mono text-[10px] font-medium text-[var(--oasis-text-dim)]">
-                      retrospective ({r.retro.modelVersion}, pre-match data only) — not locked before kickoff
-                    </span>
-                  </>
-                ) : (
-                  <span className="rounded-[6px] border border-dashed border-[var(--oasis-border)] px-3 py-[5px] font-mono text-[11px] font-medium text-[var(--oasis-text-dim)]">
-                    no locked prediction — played before lock automation ran (locking live from 21 Aug 2026)
-                  </span>
                 )}
                 <span className="w-full text-center font-mono text-[10.5px] font-medium leading-[1.35] text-[var(--oasis-text-muted)] md:text-[11.5px]">
                   {LEAGUE_NAMES[r.lg]} · {r.ko} UTC{r.locked ? ` · ${r.locked.modelVersion}` : ""}
@@ -615,12 +639,8 @@ function ResultsList({ rows }: { rows: import("@/lib/types").RecentResult[] }) {
                       <span className="block text-[10.5px] text-[var(--oasis-text-dim)]">ll {r.locked.logLoss.toFixed(2)}</span>
                     )}
                   </span>
-                ) : r.retro ? (
-                  <span className="opacity-75" style={{ color: r.retro.correct ? "var(--oasis-positive)" : "var(--oasis-away)" }}>
-                    {r.retro.correct ? "✓ retro" : "✗ retro"}
-                  </span>
                 ) : (
-                  <span className="text-[var(--oasis-text-dim)]">—</span>
+                  <span className="text-[var(--oasis-text-dim)]">awaiting settlement</span>
                 )}
               </span>
               </span>
@@ -630,7 +650,7 @@ function ResultsList({ rows }: { rows: import("@/lib/types").RecentResult[] }) {
       })}
       {rows.length === 0 && (
         <div className="rounded-[9px] border border-dashed border-[var(--oasis-border-strong)] p-[22px] text-center text-[13px] font-semibold text-[var(--oasis-text-muted)]">
-          No finished matches in the last 7 days for this selection.
+          No locked predictions have settled in the last 7 days for this selection. Predictions lock at kickoff and appear here once the match finishes.
         </div>
       )}
     </>

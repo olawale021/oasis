@@ -48,6 +48,9 @@ export interface LiveData {
   recent_results: RecentResult[];
   experiments: Experiment[];
   factor_glossary: Record<string, string>;
+  /** Free-tier taster, pinned per UTC day by the matchday chain:
+   * {"2026-09-12": [fixtureId, fixtureId]}. Only today's entry is used. */
+  taster?: Record<string, number[]>;
 }
 
 export const LEAGUE_CODES: LeagueCode[] = ["EPL", "LAL", "SEA", "BUN", "MLS"];

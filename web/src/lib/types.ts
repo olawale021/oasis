@@ -56,6 +56,10 @@ export interface MatchRecord {
   missingAway: number;
   factors: FactorWeight[];
   stage: string;
+  /** True when the server stripped the prediction fields for this viewer
+   * (see lib/gate.ts). Probabilities, score, matrix, factors, market and
+   * explanation are then zero/empty and must not be rendered as data. */
+  gated?: boolean;
 }
 
 export interface DerivedMatch extends MatchRecord {

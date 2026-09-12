@@ -22,7 +22,7 @@ const LOCK: Record<LockState, { label: string; cls: string }> = {
 
 function Card({ title, children, className }: { title: string; children: React.ReactNode; className?: string }) {
   return (
-    <section className={cn("rounded-[10px] border border-[var(--oasis-border)] bg-[var(--oasis-surface)]", className)}>
+    <section className={cn("min-w-0 rounded-[10px] border border-[var(--oasis-border)] bg-[var(--oasis-surface)]", className)}>
       <h2 className="border-b border-[var(--oasis-border)] px-4 py-[10px] font-mono text-[11px] font-medium uppercase tracking-[0.08em] text-[var(--oasis-text-dim)]">
         {title}
       </h2>
@@ -35,7 +35,7 @@ function Row({ k, v, warn }: { k: string; v: React.ReactNode; warn?: boolean }) 
   return (
     <div className="flex items-baseline justify-between gap-4 border-b border-[var(--oasis-border-row)] py-[6px] text-[12.5px] last:border-0">
       <span className="text-[var(--oasis-text-muted)]">{k}</span>
-      <span className={cn("font-mono text-right", warn ? "text-[var(--oasis-warn)]" : "text-[var(--oasis-text)]")}>{v}</span>
+      <span className={cn("min-w-0 break-words font-mono text-right", warn ? "text-[var(--oasis-warn)]" : "text-[var(--oasis-text)]")}>{v}</span>
     </div>
   );
 }
@@ -71,7 +71,7 @@ export function AdminConsole({ ops, liveGeneratedAt, now }: { ops: OpsData; live
           <span className={cn("font-sans text-[15px] font-extrabold", h.text)}>{h.label}</span>
         </div>
         <span className="text-[12.5px] text-[var(--oasis-text-muted)]">{h.blurb}</span>
-        <div className="ml-auto flex flex-wrap items-center gap-x-5 gap-y-1 font-mono text-[11.5px] text-[var(--oasis-text-dim)]">
+        <div className="flex w-full flex-wrap items-center gap-x-5 gap-y-1 font-mono text-[11.5px] text-[var(--oasis-text-dim)] sm:ml-auto sm:w-auto">
           <span>report {ago(ops.generated_at, now)}</span>
           <span>run {ops.last_run.ok === false ? `failed at ${ops.last_run.failed_step}` : duration(ops.last_run.duration_s)}</span>
           <span>site data {ago(liveGeneratedAt, now)}</span>
@@ -83,9 +83,10 @@ export function AdminConsole({ ops, liveGeneratedAt, now }: { ops: OpsData; live
         </div>
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-3">
-        <Card title="Server">
-          <Row k="host" v={`${host.hostname} · ${host.os}`} />
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-[minmax(0,1fr)_minmax(0,1.6fr)_minmax(0,1fr)]">
+        <Card title="Server" className="xl:order-1">
+          <Row k="host" v={host.hostname} />
+          <Row k="os" v={host.os} />
           <Row k="uptime" v={uptime(host.uptime_s)} />
           <Row k="load (1m)" v={host.load_1m ?? "—"} warn={(host.load_1m ?? 0) > 1.5} />
           <Row k="memory" v={memUsed != null ? `${memUsed} / ${host.mem_total_mb} MB` : "—"} warn={memUsed != null && memUsed > 800} />
@@ -95,23 +96,39 @@ export function AdminConsole({ ops, liveGeneratedAt, now }: { ops: OpsData; live
           <Row k="cron" v={host.cron ? host.cron.split(" ").slice(0, 5).join(" ") : "not installed"} warn={!host.cron} />
         </Card>
 
-        <Card title="Pipeline steps">
-          <table className="w-full">
-            <thead><tr><th className={th}>step</th><th className={th}>ok</th><th className={th}>at</th><th className={th}>took</th><th className={th}>counts</th></tr></thead>
-            <tbody>
-              {ops.steps.map((s) => (
-                <tr key={s.key} className="border-t border-[var(--oasis-border-row)]">
-                  <td className={td}>{s.label}</td>
-                  <td className={cn(td, "font-mono", s.ok === false ? "text-[var(--oasis-away)]" : "text-[var(--oasis-positive)]")}>{s.ok == null ? "—" : s.ok ? "ok" : "fail"}</td>
-                  <td className={cn(td, "font-mono text-[var(--oasis-text-muted)]")}>{clock(s.refreshed_at)}</td>
-                  <td className={cn(td, "font-mono text-[var(--oasis-text-muted)]")}>{s.duration_ms != null ? `${(s.duration_ms / 1000).toFixed(0)}s` : "—"}</td>
-                  <td className={cn(td, "font-mono text-[11px] text-[var(--oasis-text-dim)] whitespace-normal")}>
-                    {Object.entries(s.counts).filter(([, v]) => typeof v === "number").map(([k, v]) => `${k.replace(/_/g, " ")} ${v}`).join(" · ") || "—"}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+        <Card title="Pipeline steps" className="-order-1 md:col-span-2 xl:order-2 xl:col-span-1">
+          <div className="divide-y divide-[var(--oasis-border-row)]">
+            {ops.steps.map((s) => {
+              const counts = Object.entries(s.counts).filter((e): e is [string, number] => typeof e[1] === "number");
+              return (
+                <div key={s.key} className="py-[8px] first:pt-0 last:pb-0">
+                  <div className="flex items-center gap-[10px]">
+                    <span
+                      className={cn(
+                        "h-[7px] w-[7px] shrink-0 rounded-full",
+                        s.ok == null ? "bg-[var(--oasis-border-strong)]" : s.ok ? "bg-[var(--oasis-positive)]" : "bg-[var(--oasis-away)]",
+                      )}
+                    />
+                    <span className="min-w-0 flex-1 truncate text-[12.5px] font-semibold">{s.label}</span>
+                    <span className="flex shrink-0 items-center gap-[10px] font-mono text-[11px] text-[var(--oasis-text-muted)]">
+                      {s.ok === false && <span className="font-bold text-[var(--oasis-away)]">fail</span>}
+                      <span>{clock(s.refreshed_at)}</span>
+                      <span className="w-[32px] text-right text-[var(--oasis-text-dim)]">{s.duration_ms != null ? `${(s.duration_ms / 1000).toFixed(0)}s` : "—"}</span>
+                    </span>
+                  </div>
+                  {counts.length > 0 && (
+                    <div className="mt-[5px] flex flex-wrap gap-x-[10px] gap-y-[3px] pl-[17px] font-mono text-[10.5px] leading-[1.4] text-[var(--oasis-text-dim)]">
+                      {counts.map(([k, v]) => (
+                        <span key={k} className="whitespace-nowrap">
+                          {k.replace(/_/g, " ")} <span className="text-[var(--oasis-text-muted)]">{v.toLocaleString()}</span>
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
           {ops.steps.some((s) => s.error) && (
             <pre className="mt-3 overflow-x-auto rounded-[6px] bg-[var(--oasis-bg)] p-2 font-mono text-[11px] text-[var(--oasis-away)]">
               {ops.steps.filter((s) => s.error).map((s) => `${s.key}: ${s.error}`).join("\n")}
@@ -119,7 +136,7 @@ export function AdminConsole({ ops, liveGeneratedAt, now }: { ops: OpsData; live
           )}
         </Card>
 
-        <Card title={`Run history · last ${ops.runs.length || 0}`}>
+        <Card title={`Run history · last ${ops.runs.length || 0}`} className="xl:order-3">
           {ops.runs.length === 0 ? (
             <p className="text-[12.5px] text-[var(--oasis-text-muted)]">No runs recorded yet. History starts with the first cron run after this deploy.</p>
           ) : (
@@ -175,7 +192,7 @@ export function AdminConsole({ ops, liveGeneratedAt, now }: { ops: OpsData; live
           {upcoming.length === 0 ? (
             <p className="text-[12.5px] text-[var(--oasis-text-muted)]">No predicted fixtures in the next 72 hours.</p>
           ) : (
-            <div className="max-h-[420px] overflow-auto">
+            <div className="max-h-[420px] overflow-auto"><div className="min-w-[560px]">
               <table className="w-full">
                 <thead><tr><th className={th}>kickoff</th><th className={th}>lg</th><th className={th}>match</th><th className={th}>lock by</th><th className={th}>run</th><th className={th}>state</th></tr></thead>
                 <tbody>
@@ -191,7 +208,7 @@ export function AdminConsole({ ops, liveGeneratedAt, now }: { ops: OpsData; live
                   ))}
                 </tbody>
               </table>
-            </div>
+            </div></div>
           )}
         </Card>
       </div>
@@ -200,7 +217,7 @@ export function AdminConsole({ ops, liveGeneratedAt, now }: { ops: OpsData; live
         {ops.ledger.length === 0 ? (
           <p className="text-[12.5px] text-[var(--oasis-text-muted)]">Nothing locked yet. Rows appear when a cron run lands inside the lock window before kickoff.</p>
         ) : (
-          <div className="max-h-[480px] overflow-auto">
+          <div className="max-h-[480px] overflow-auto"><div className="min-w-[860px]">
             <table className="w-full">
               <thead><tr>
                 <th className={th}>kickoff</th><th className={th}>lg</th><th className={th}>match</th><th className={th}>h / d / a</th><th className={th}>market</th><th className={th}>conf</th><th className={th}>locked</th><th className={th}>result</th><th className={th}>ll</th><th className={th}>hit</th>
@@ -222,7 +239,7 @@ export function AdminConsole({ ops, liveGeneratedAt, now }: { ops: OpsData; live
                 ))}
               </tbody>
             </table>
-          </div>
+          </div></div>
         )}
       </Card>
 

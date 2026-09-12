@@ -1,6 +1,9 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { ProbabilityBar, ProbabilityLegend } from "@/components/probability-bar";
+import { LockedBar, ProbabilityBar, ProbabilityLegend } from "@/components/probability-bar";
+import { UnlockCta } from "@/components/unlock-cta";
+import { getViewer } from "@/lib/viewer";
+import { redactLive } from "@/lib/gate";
 import { LEAGUE_CODES, LEAGUE_NAMES, matchesByLeague } from "@/lib/data";
 import { getLive } from "@/lib/live-server";
 import { deriveMatch } from "@/lib/derive";
@@ -17,7 +20,9 @@ export default async function LeaguePage({ params }: { params: Promise<{ code: s
   const { code: rawCode } = await params;
   const code = rawCode.toUpperCase();
   if (!isLeagueCode(code)) notFound();
-  const live = await getLive();
+  const viewer = await getViewer();
+  const live = redactLive(await getLive(), viewer);
+  const lockedCount = live.matches.filter((m) => m.lg === code && m.gated).length;
 
   const isLive = live.live_leagues.includes(code);
   const fixtures = matchesByLeague(live, code).map(deriveMatch);
@@ -94,11 +99,15 @@ export default async function LeaguePage({ params }: { params: Promise<{ code: s
                       {m.ko} UTC · {m.st}
                     </span>
                   </span>
-                  <ProbabilityBar home={m.h} draw={m.d} away={m.a} height={24} labeled className="w-full sm:max-w-[420px]" />
+                  {m.gated ? (
+                    <LockedBar height={24} className="w-full sm:max-w-[420px]" label={viewer.tier === "anon" ? "sign in to unlock" : "lifetime access"} />
+                  ) : (
+                    <ProbabilityBar home={m.h} draw={m.d} away={m.a} height={24} labeled className="w-full sm:max-w-[420px]" />
+                  )}
                   <span className="flex items-baseline gap-2 sm:w-[64px] sm:flex-col sm:items-end sm:gap-0">
-                    <span className="font-mono text-[13px] font-medium sm:text-[13.5px]">{m.condScore}</span>
+                    <span className="font-mono text-[13px] font-medium sm:text-[13.5px]">{m.gated ? "—" : m.condScore}</span>
                     <span className="font-mono text-[10px] font-medium text-[var(--oasis-text-dim)]">
-                      {Math.round(m.condPct)}%
+                      {m.gated ? "locked" : `${Math.round(m.condPct)}%`}
                     </span>
                   </span>
                 </Link>
@@ -106,6 +115,15 @@ export default async function LeaguePage({ params }: { params: Promise<{ code: s
               {fixtures.length === 0 && (
                 <div className="rounded-[10px] border border-dashed border-[var(--oasis-border-strong)] p-5 text-center text-[13px] font-semibold text-[var(--oasis-text-muted)]">
                   No upcoming fixtures in the prediction horizon.
+                </div>
+              )}
+              {lockedCount > 0 && (
+                <div className="flex flex-col items-start gap-3 rounded-[10px] border border-[var(--oasis-border-strong)] p-4 sm:flex-row sm:items-center" style={{ background: "linear-gradient(120deg,rgba(77,156,246,.1),rgba(47,207,154,.06))" }}>
+                  <div className="flex-1 text-[12.5px] leading-[1.6] text-[var(--oasis-text-muted)]">
+                    <span className="font-bold text-[var(--oasis-text)]">{lockedCount} of {fixtures.length} predictions locked.</span>{" "}
+                    {viewer.tier === "anon" ? "A free account unlocks the two highest-confidence predictions each day." : "Lifetime access unlocks every match."}
+                  </div>
+                  <UnlockCta tier={viewer.tier} />
                 </div>
               )}
 

@@ -5,6 +5,9 @@ import { Badge } from "@/components/ui/badge";
 import { AlertToggle } from "@/components/match/alert-toggle";
 import { getMatchById, utcClock } from "@/lib/data";
 import { getLive } from "@/lib/live-server";
+import { getViewer } from "@/lib/viewer";
+import { redactLive } from "@/lib/gate";
+import { UnlockCta } from "@/components/unlock-cta";
 import { deriveMatch } from "@/lib/derive";
 import { MatchName, TeamLogo } from "@/components/team-logo";
 
@@ -19,11 +22,64 @@ function utcStamp(iso: string): string {
 
 export default async function MatchDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const live = await getLive();
+  const viewer = await getViewer();
+  const live = redactLive(await getLive(), viewer);
   const record = getMatchById(live, Number(id));
   if (!record) notFound();
 
   const m = deriveMatch(record);
+  if (m.gated) {
+    return (
+      <div className="flex w-full flex-col gap-[14px] p-3 sm:p-5">
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-[10px] border border-[var(--oasis-border)] bg-[var(--oasis-surface)] p-4">
+          <Link href="/" className="font-mono text-[12px] font-semibold text-[var(--oasis-text-dim)]">
+            ← Board
+          </Link>
+          <span className="text-[18px] font-bold leading-none tracking-[-0.02em] sm:text-[21px]">
+            <MatchName home={m.home} away={m.away} homeId={m.homeId} awayId={m.awayId} size={26} />
+          </span>
+          <span className="font-mono text-[11.5px] font-medium text-[var(--oasis-text-muted)]">
+            {m.leagueName} · {m.ko} UTC{m.round ? ` · ${m.round}` : ""}
+          </span>
+          <span className="ml-auto flex gap-2">
+            <Badge
+              variant="outline"
+              className="font-mono text-[10px] font-semibold tracking-[0.08em] text-[var(--oasis-text-muted)]"
+            >
+              MODEL {(live.model_versions[m.lg] ?? "").toUpperCase()}
+            </Badge>
+          </span>
+        </div>
+
+        <div className="flex flex-col gap-4 rounded-[10px] border border-[var(--oasis-border)] bg-[var(--oasis-surface)] p-5 sm:p-7">
+          <div
+            className="flex h-11 items-center justify-center rounded-[9px] font-mono text-[12px] font-semibold tracking-[0.1em] text-[var(--oasis-text-dim)]"
+            style={{ background: "repeating-linear-gradient(135deg, var(--oasis-border-row) 0 8px, var(--oasis-surface-raised) 8px 16px)", border: "1px solid var(--oasis-border)" }}
+          >
+            🔒 PREDICTION LOCKED
+          </div>
+          <div className="max-w-[560px] text-[13.5px] leading-[1.7] text-[var(--oasis-text-soft)]">
+            {viewer.tier === "anon" ? (
+              <>A free account shows the two highest-confidence predictions each day. Lifetime access shows every upcoming match with win probabilities, likely score, score matrix, the factors behind the forecast and the comparison against bookmaker odds.</>
+            ) : (
+              <>This match is outside today&rsquo;s free taster. Lifetime access shows every upcoming match with win probabilities, likely score, score matrix, the factors behind the forecast and the comparison against bookmaker odds.</>
+            )}{" "}
+            Once the match finishes, the locked prediction and its verdict become public under Results.
+          </div>
+          <div className="flex flex-wrap items-center gap-3">
+            <UnlockCta tier={viewer.tier} />
+            <Link href="/performance" className="text-[12.5px] font-bold text-[var(--oasis-home)]">
+              See the public track record →
+            </Link>
+          </div>
+        </div>
+
+        <div className="font-mono text-[10px] font-medium leading-[1.6] text-[var(--oasis-text-faint)]">
+          Prediction locks at kickoff {utcStamp(m.kickoffUtc)} UTC · no edits after kickoff. Probabilistic forecast, not betting advice. 18+ · responsible use.
+        </div>
+      </div>
+    );
+  }
   const matrix = m.matrix;
   const grid = matrix.grid.slice(0, MATRIX_DISPLAY_GOALS).map((row) => row.slice(0, MATRIX_DISPLAY_GOALS));
   const peakVisible = matrix.peakRow < MATRIX_DISPLAY_GOALS && matrix.peakCol < MATRIX_DISPLAY_GOALS;

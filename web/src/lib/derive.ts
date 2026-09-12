@@ -4,6 +4,20 @@ import type { DerivedMatch, MatchRecord } from "./types";
 const EDGE_HOT_THRESHOLD = 3;
 
 export function deriveMatch(m: MatchRecord): DerivedMatch {
+  const statusConfirmedEarly = m.st.includes("confirmed");
+  if (m.gated) {
+    return {
+      ...m,
+      leagueName: LEAGUE_NAMES[m.lg],
+      probsLabel: "—",
+      marketLabel: null,
+      edge: null,
+      edgeLabel: "—",
+      hot: false,
+      statusConfirmed: statusConfirmedEarly,
+      metaLabel: `${LEAGUE_NAMES[m.lg]} · ${m.ko} UTC${statusConfirmedEarly ? " · lineups confirmed" : ""}`,
+    };
+  }
   // Market probabilities come from archived odds snapshots; a fixture with
   // no snapshot yet stays null — there is never a fake edge.
   const hasMarket = m.mh !== null && m.md !== null && m.ma !== null;

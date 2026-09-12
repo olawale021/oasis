@@ -267,6 +267,33 @@ def build_matches(predictions: dict, missing_counts: dict, outcome_models: dict,
     return out
 
 
+TASTER_PER_DAY = 2
+TASTER_PATH = config.DATA_DIR / "taster.json"
+
+
+def build_taster(matches: list, today: str = None) -> dict:
+    """Free-tier taster: the TASTER_PER_DAY highest-confidence fixtures of the
+    current UTC day, pinned the first time the chain runs that day and never
+    recomputed, so a lineup-stage update cannot swap in a third fixture and
+    leak an extra prediction. Persisted in data/taster.json ({date: [ids]});
+    the site only ever reads today's entry, so old dates are pruned here."""
+    today = today or datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    pinned = {}
+    if TASTER_PATH.exists():
+        try:
+            pinned = json.loads(TASTER_PATH.read_text())
+        except json.JSONDecodeError:
+            pinned = {}
+    if today not in pinned:
+        todays = [m for m in matches if m["kickoffUtc"][:10] == today]
+        todays.sort(key=lambda m: (-max(m["h"], m["d"], m["a"]), m["kickoffUtc"], m["id"]))
+        pinned[today] = [m["id"] for m in todays[:TASTER_PER_DAY]]
+    pinned = {d: ids for d, ids in pinned.items() if d >= today}
+    TASTER_PATH.parent.mkdir(parents=True, exist_ok=True)
+    TASTER_PATH.write_text(json.dumps(pinned, indent=2))
+    return pinned
+
+
 def build_standings(conn, league_cfg: dict) -> list:
     target_id, feeder_id = league_cfg["league_id"], league_cfg["feeder_id"]
     league_ids = [target_id] + ([feeder_id] if feeder_id else [])
@@ -791,6 +818,7 @@ def main() -> None:
         for cfg in leagues.TARGETS.values()
     }
 
+    matches = build_matches(predictions, missing_index._counts, outcome_models, rounds)
     live = {
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "predictions_generated_at": predictions["generated_at"],
@@ -810,7 +838,8 @@ def main() -> None:
         },
         "model_releases": build_model_releases(),
         "freshness": build_freshness(conn, target_ids),
-        "matches": build_matches(predictions, missing_index._counts, outcome_models, rounds),
+        "matches": matches,
+        "taster": build_taster(matches),
         "standings": standings,
         "league_perf": league_perf,
         "ledger": backtest["ledger"],
