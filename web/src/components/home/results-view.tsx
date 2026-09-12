@@ -292,7 +292,7 @@ export function LiveRecordCard({ live }: { live: LiveData }) {
       <div className="font-mono text-[10px] font-semibold tracking-[0.1em] text-[var(--oasis-text-dim)]">SEASON SO FAR · LIVE RECORD</div>
       <Row k="matches scored" v={lr.settled} />
       <Row k="closer than market" v={lr.closer_n != null && lr.market_n ? `${lr.closer_n} · ${closerPct}%` : "—"} color="var(--oasis-positive)" />
-      <Row k="forecast error" v={lr.model_log_loss_on_market != null && lr.market_log_loss != null ? `${lr.model_log_loss_on_market.toFixed(3)} v ${lr.market_log_loss.toFixed(3)}` : "—"} />
+      <Row k="log loss v market" v={lr.model_log_loss_on_market != null && lr.market_log_loss != null ? `${lr.model_log_loss_on_market.toFixed(3)} v ${lr.market_log_loss.toFixed(3)}` : "—"} />
       <Row k="top pick correct" v={lr.accuracy != null ? `${Math.round(lr.accuracy)}%` : "—"} />
       <span className="font-mono text-[10px] leading-[1.6] text-[var(--oasis-text-faint)]">Locking started 11 Sep 2026. Every settled forecast is counted, none removed.</span>
       <a href="/performance" className="text-[11.5px] font-bold text-[var(--oasis-home)]">See full record →</a>
@@ -304,7 +304,7 @@ function Row({ k, v, color }: { k: string; v: React.ReactNode; color?: string })
   return (
     <span className="flex justify-between gap-3 font-mono text-[12.5px] font-medium">
       <span className="text-[var(--oasis-text-muted)]">{k}</span>
-      <span style={{ color: v === "—" ? undefined : color }}>{v}</span>
+      <span className="whitespace-nowrap" style={{ color: v === "—" ? undefined : color }}>{v}</span>
     </span>
   );
 }
