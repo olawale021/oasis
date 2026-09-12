@@ -10,9 +10,16 @@ import type { LiveData } from "@/lib/data";
 import { deriveMatch, sortByKickoff } from "@/lib/derive";
 import type { DerivedMatch, LeagueFilter } from "@/lib/types";
 import { TeamSide } from "@/components/team-logo";
+import { HowToReadCard, LiveRecordCard, MarketCard, ResultsHero, ResultsList, SignInStrip, type ResultsFilter } from "@/components/home/results-view";
 
 const DAY_TABS = ["Today", "Tomorrow", "Week", "Results"] as const;
 const TASTER_PER_DAY = 2;
+const RESULT_FILTERS: { key: ResultsFilter; label: string }[] = [
+  { key: "all", label: "All results" },
+  { key: "closer", label: "Closer than market" },
+  { key: "market", label: "Market closer" },
+  { key: "hit", label: "Top pick correct" },
+];
 type DayTab = (typeof DAY_TABS)[number];
 
 function utcDayStamp(d: Date): string {
@@ -32,6 +39,8 @@ export function HomeConsole({ live, tier }: { live: LiveData; tier: Tier }) {
   // on click.
   const [dayTab, setDayTab] = useState<DayTab>(tier === "anon" ? "Results" : "Week");
   const [expanded, setExpanded] = useState<number | null>(null);
+  const [resultFilter, setResultFilter] = useState<ResultsFilter>("all");
+  const isResults = dayTab === "Results";
 
   const derived = useMemo(() => sortByKickoff(live.matches.map(deriveMatch)), []);
 
@@ -53,10 +62,15 @@ export function HomeConsole({ live, tier }: { live: LiveData; tier: Tier }) {
   }, [derived, league, confirmedOnly, highConfOnly, edgeOnly, dayTab]);
 
   const leagueCounts = useMemo(() => {
-    const counts: Record<LeagueFilter, number> = { ALL: derived.length, EPL: 0, LAL: 0, SEA: 0, BUN: 0, MLS: 0 };
-    for (const m of derived) counts[m.lg] += 1;
+    const counts: Record<LeagueFilter, number> = { ALL: 0, EPL: 0, LAL: 0, SEA: 0, BUN: 0, MLS: 0 };
+    if (isResults) {
+      for (const r of live.recent_results) if (r.locked) { counts.ALL += 1; counts[r.lg] += 1; }
+    } else {
+      counts.ALL = derived.length;
+      for (const m of derived) counts[m.lg] += 1;
+    }
     return counts;
-  }, [derived]);
+  }, [derived, isResults, live.recent_results]);
 
   // Public record = predictions locked before kickoff only. Retrospective
   // reconstructions for matches played before lock automation ran are
@@ -66,15 +80,26 @@ export function HomeConsole({ live, tier }: { live: LiveData; tier: Tier }) {
     [league, live.recent_results],
   );
 
+  const resultCounts = useMemo(() => {
+    const c = { all: 0, closer: 0, market: 0, hit: 0 };
+    for (const r of live.recent_results) {
+      const l = r.locked;
+      if (!l) continue;
+      c.all += 1;
+      if (l.closer === true) c.closer += 1;
+      if (l.closer === false) c.market += 1;
+      if (l.correct === true) c.hit += 1;
+    }
+    return c;
+  }, [live.recent_results]);
+
   const heading = useMemo(() => {
-    if (dayTab === "Results") return "Recent results";
+    if (dayTab === "Results") return "Results";
     if (rows.length === 0) return dayTab === "Week" ? "Upcoming fixtures" : dayTab;
     const first = utcDayLabel(rows[0].kickoffUtc);
     const last = utcDayLabel(rows[rows.length - 1].kickoffUtc);
     return first === last ? first : `${first} – ${last}`;
   }, [rows, dayTab]);
-
-  let lastDay = "";
 
   return (
     <div className="grid w-full grid-cols-1 lg:grid-cols-[212px_1fr_268px]">
@@ -112,6 +137,32 @@ export function HomeConsole({ live, tier }: { live: LiveData; tier: Tier }) {
           </div>
         </div>
 
+        {isResults && (
+          <div className="flex flex-col gap-[9px]">
+            <div className="font-mono text-[10px] font-semibold tracking-[0.1em] text-[var(--oasis-text-dim)]">SHOW</div>
+            <div className="flex flex-wrap gap-2 lg:flex-col lg:gap-[9px]">
+              {RESULT_FILTERS.map((f) => {
+                const active = resultFilter === f.key;
+                return (
+                  <button
+                    key={f.key}
+                    type="button"
+                    onClick={() => setResultFilter(f.key)}
+                    className="rs-tab cursor-pointer rounded-[7px] px-[10px] py-[6px] text-left text-[11.5px] font-semibold lg:py-[7px] lg:text-[12px]"
+                    style={
+                      active
+                        ? { color: "var(--oasis-positive)", background: "var(--oasis-positive-tint)", border: "1px solid rgba(47,207,154,.35)" }
+                        : { color: "var(--oasis-text-muted)", border: "1px solid var(--oasis-border)" }
+                    }
+                  >
+                    {f.label} · {resultCounts[f.key]}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
+        {!isResults && (
         <div className="flex flex-col gap-[9px]">
           <div className="font-mono text-[10px] font-semibold tracking-[0.1em] text-[var(--oasis-text-dim)]">
             FILTERS
@@ -166,6 +217,7 @@ export function HomeConsole({ live, tier }: { live: LiveData; tier: Tier }) {
           )}
           </div>
         </div>
+        )}
 
         <div className="rounded-[9px] border border-[var(--oasis-border)] bg-[var(--oasis-surface)] p-[11px]">
           <div className="font-mono text-[10px] font-semibold tracking-[0.1em] text-[var(--oasis-text-dim)]">
@@ -182,12 +234,13 @@ export function HomeConsole({ live, tier }: { live: LiveData; tier: Tier }) {
 
       {/* Centre column */}
       <div className="flex min-w-0 flex-col gap-[14px] p-3 sm:p-[18px] sm:px-5">
+        {isResults && <ResultsHero rows={resultRows} live={live} bookmakerCount={live.bookmakers?.length ?? 0} />}
         <div className="flex flex-wrap items-baseline gap-x-3 gap-y-2">
           <span className="text-[19px] font-extrabold leading-none tracking-[-0.02em] sm:text-[22px]">{heading}</span>
           <span className="font-mono text-[11.5px] font-medium text-[var(--oasis-text-muted)] sm:text-[12.5px]">
             {LEAGUE_NAMES[league]} ·{" "}
             {dayTab === "Results"
-              ? `${resultRows.length} played (last 7 days)`
+              ? `${resultRows.length} settled · last 7 days`
               : `${rows.length} ${rows.length === 1 ? "match" : "matches"}`}
           </span>
           <span className="ml-auto flex flex-wrap gap-[6px] text-[11.5px] font-semibold">
@@ -196,7 +249,7 @@ export function HomeConsole({ live, tier }: { live: LiveData; tier: Tier }) {
                 key={tab}
                 type="button"
                 onClick={() => setDayTab(tab)}
-                className="cursor-pointer rounded-[6px] px-[10px] py-[5px]"
+                className="rs-tab cursor-pointer rounded-[6px] px-[10px] py-[5px]"
                 style={
                   tab === dayTab
                     ? { background: "var(--oasis-surface-raised)", border: "1px solid var(--oasis-border-strong)" }
@@ -209,16 +262,8 @@ export function HomeConsole({ live, tier }: { live: LiveData; tier: Tier }) {
           </span>
         </div>
 
-        {dayTab === "Results" && tier === "anon" && (
-          <div className="flex flex-col items-start gap-3 rounded-[9px] border border-[var(--oasis-border)] bg-[var(--oasis-surface)] p-3 sm:flex-row sm:items-center sm:gap-4">
-            <div className="flex-1 text-[12.5px] leading-[1.6] text-[var(--oasis-text-muted)]">
-              <span className="font-bold text-[var(--oasis-text)]">Every prediction below was locked before kickoff.</span>{" "}
-              Upcoming matches are under Today, Tomorrow and Week; a free account unlocks the {TASTER_PER_DAY} highest-confidence predictions each day.
-            </div>
-            <UnlockCta tier={tier} />
-          </div>
-        )}
-        {dayTab === "Results" && <ResultsList rows={resultRows} />}
+        {isResults && !premium && <SignInStrip tier={tier} />}
+        {isResults && <ResultsList rows={resultRows} filter={resultFilter} />}
 
         {dayTab !== "Results" && (<>
         <div className="flex items-center border-b border-[var(--oasis-border)] px-1 pb-[9px] font-mono text-[10px] font-semibold tracking-[0.09em] text-[var(--oasis-text-dim)] sm:text-[10.5px]">
@@ -251,11 +296,10 @@ export function HomeConsole({ live, tier }: { live: LiveData; tier: Tier }) {
           </span>
         </div>
 
-        {rows.map((m) => {
+        {rows.map((m, idx) => {
           const isOpen = expanded === m.id;
           const day = m.kickoffUtc.slice(0, 10);
-          const showDay = dayTab === "Week" && day !== lastDay;
-          lastDay = day;
+          const showDay = dayTab === "Week" && (idx === 0 || rows[idx - 1].kickoffUtc.slice(0, 10) !== day);
           return (
             <div key={m.id}>
               {showDay && (
@@ -418,6 +462,13 @@ export function HomeConsole({ live, tier }: { live: LiveData; tier: Tier }) {
 
       {/* Right rail */}
       <div className="flex min-w-0 flex-col gap-[14px] border-t border-[var(--oasis-border)] bg-[var(--oasis-bg-rail)] p-4 lg:border-t-0 lg:border-l">
+        {isResults && (
+          <>
+            <HowToReadCard />
+            <MarketCard bookmakers={live.bookmakers ?? []} />
+            <LiveRecordCard live={live} />
+          </>
+        )}
         <div className="flex flex-col gap-[9px] rounded-[10px] border border-[var(--oasis-border)] bg-[var(--oasis-surface)] p-[13px]">
           <div className="font-mono text-[10px] font-semibold tracking-[0.1em] text-[var(--oasis-text-dim)]">
             2025/26 BACKTEST · {live.headline.n_test} MATCHES
@@ -461,6 +512,7 @@ export function HomeConsole({ live, tier }: { live: LiveData; tier: Tier }) {
           </Link>
         </div>
 
+        {!isResults && (
         <div className="flex flex-col gap-2 rounded-[10px] border border-[var(--oasis-border)] bg-[var(--oasis-surface)] p-[13px]">
           <div className="font-mono text-[10px] font-semibold tracking-[0.1em] text-[var(--oasis-text-dim)]">
             TELEGRAM
@@ -473,6 +525,7 @@ export function HomeConsole({ live, tier }: { live: LiveData; tier: Tier }) {
             Connect account
           </div>
         </div>
+        )}
 
         <div className="font-mono text-[10px] font-medium leading-[1.6] text-[var(--oasis-text-faint)]">
           Probabilistic forecasts, not guarantees and not betting advice. 18+ · responsible use.
@@ -583,76 +636,5 @@ function EdgeInfoPopover({ matches, onClose }: { matches: DerivedMatch[]; onClos
         </p>
       </div>
     </div>
-  );
-}
-
-function ResultsList({ rows }: { rows: import("@/lib/types").RecentResult[] }) {
-  let lastDay = "";
-  return (
-    <>
-      <div className="flex items-center border-b border-[var(--oasis-border)] px-1 pb-[9px] font-mono text-[10px] font-semibold tracking-[0.09em] text-[var(--oasis-text-dim)] sm:text-[10.5px]">
-        <span className="flex flex-1 items-center gap-[14px] md:pr-[18px]">
-          <span className="hidden text-right md:block md:w-[160px]">HOME</span>
-          <span className="flex flex-1 items-center gap-[14px] md:justify-center">
-            <span className="hidden md:inline">LOCKED PRE-KICKOFF PREDICTION</span>
-            <ProbabilityLegend />
-          </span>
-          <span className="hidden md:block md:w-[160px]">AWAY</span>
-        </span>
-        <span className="hidden w-[80px] text-right md:block">FINAL</span>
-        <span className="hidden w-[110px] text-right md:block">VERDICT</span>
-      </div>
-      {rows.map((r) => {
-        const day = r.kickoffUtc.slice(0, 10);
-        const showDay = day !== lastDay;
-        lastDay = day;
-        return (
-          <div key={r.id}>
-            {showDay && (
-              <div className="pb-[6px] pt-2 font-mono text-[12.5px] font-semibold tracking-[0.08em] text-[var(--oasis-text-dim)]">
-                {utcDayLabel(r.kickoffUtc).toUpperCase()}
-              </div>
-            )}
-            <div className="flex flex-col gap-[10px] border-b border-[var(--oasis-border-row)] px-1 py-3 md:flex-row md:items-center md:gap-0 md:py-[14px]">
-              <span className="flex w-full min-w-0 items-center gap-[10px] md:w-auto md:flex-1 md:gap-[14px] md:pr-[18px]">
-                <TeamSide id={r.homeId} name={r.home} side="home" size={24} className="w-[29%] text-[13px] font-bold tracking-[-0.01em] md:w-[160px] md:text-[15px]" />
-                <span className="flex min-w-0 flex-1 flex-col gap-[4px]">
-                {r.locked && (
-                  <ProbabilityBar home={r.locked.h} draw={r.locked.d} away={r.locked.a} height={26} labeled className="w-full" />
-                )}
-                <span className="w-full text-center font-mono text-[10.5px] font-medium leading-[1.35] text-[var(--oasis-text-muted)] md:text-[11.5px]">
-                  {LEAGUE_NAMES[r.lg]} · {r.ko} UTC{r.locked ? ` · ${r.locked.modelVersion}` : ""}
-                </span>
-                </span>
-                <TeamSide id={r.awayId} name={r.away} side="away" size={24} className="w-[29%] text-[13px] font-bold tracking-[-0.01em] md:w-[160px] md:text-[15px]" />
-              </span>
-              <span className="flex w-full items-center justify-between md:contents">
-              <span className="font-mono text-[15px] font-bold md:w-[80px] md:text-right md:text-[16.5px]">
-                <span className="mr-[6px] font-sans text-[9.5px] font-semibold tracking-[0.08em] text-[var(--oasis-text-dim)] md:hidden">FINAL</span>
-                {r.score}
-              </span>
-              <span className="text-right font-mono text-[11.5px] font-medium md:w-[110px] md:text-[12px]">
-                {r.locked && r.locked.correct !== null ? (
-                  <span style={{ color: r.locked.correct ? "var(--oasis-positive)" : "var(--oasis-away)" }}>
-                    {r.locked.correct ? "✓ top pick" : "✗ missed"}
-                    {r.locked.logLoss !== null && (
-                      <span className="block text-[10.5px] text-[var(--oasis-text-dim)]">ll {r.locked.logLoss.toFixed(2)}</span>
-                    )}
-                  </span>
-                ) : (
-                  <span className="text-[var(--oasis-text-dim)]">awaiting settlement</span>
-                )}
-              </span>
-              </span>
-            </div>
-          </div>
-        );
-      })}
-      {rows.length === 0 && (
-        <div className="rounded-[9px] border border-dashed border-[var(--oasis-border-strong)] p-[22px] text-center text-[13px] font-semibold text-[var(--oasis-text-muted)]">
-          No locked predictions have settled in the last 7 days for this selection. Predictions lock at kickoff and appear here once the match finishes.
-        </div>
-      )}
-    </>
   );
 }

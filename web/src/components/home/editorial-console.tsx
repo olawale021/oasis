@@ -23,7 +23,7 @@ export function EditorialConsole({ live }: { live: LiveData }) {
             className="block h-5 w-5 rounded-[6px]"
             style={{ background: "linear-gradient(140deg,#4d9cf6,#2fcf9a)" }}
           />
-          <span className="text-[15px] font-extrabold leading-none">Oasis</span>
+          <span className="text-[15px] font-extrabold leading-none">RealscoreAI</span>
         </div>
         <div className="flex gap-[18px] text-[13px] font-semibold">
           <span>Today</span>

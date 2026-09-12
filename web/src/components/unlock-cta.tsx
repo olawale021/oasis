@@ -9,8 +9,8 @@ import type { Tier } from "@/lib/viewer";
  * pricing. Client component so it can open Clerk's modal from server pages. */
 export function UnlockCta({ tier, compact = false }: { tier: Tier; compact?: boolean }) {
   const cls = compact
-    ? "whitespace-nowrap rounded-[6px] bg-[var(--oasis-home)] px-[9px] py-[4px] font-mono text-[10.5px] font-bold text-[var(--oasis-home-ink)]"
-    : "whitespace-nowrap rounded-[7px] bg-[var(--oasis-home)] px-[13px] py-[7px] text-[12.5px] font-bold text-[var(--oasis-home-ink)]";
+    ? "rs-cta whitespace-nowrap rounded-[6px] bg-[var(--oasis-home)] px-[9px] py-[4px] font-mono text-[10.5px] font-bold text-[var(--oasis-home-ink)]"
+    : "rs-cta whitespace-nowrap rounded-[7px] bg-[var(--oasis-home)] px-[13px] py-[7px] text-[12.5px] font-bold text-[var(--oasis-home-ink)]";
   if (tier === "anon") {
     return (
       <SignInButton mode="modal">

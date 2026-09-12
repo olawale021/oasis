@@ -25,7 +25,7 @@ export function SiteHeader({ generatedAt }: { generatedAt: string }) {
             style={{ background: "linear-gradient(140deg,#4d9cf6,#2fcf9a)" }}
           />
           <span className="font-sans text-[16px] font-extrabold leading-none tracking-[-0.01em]">
-            Oasis
+            RealscoreAI
           </span>
         </Link>
 
@@ -54,7 +54,7 @@ export function SiteHeader({ generatedAt }: { generatedAt: string }) {
           </span>
           <Link
             href="/pricing"
-            className="whitespace-nowrap rounded-[7px] bg-[var(--oasis-home)] px-[11px] py-[6px] text-[11.5px] font-bold text-[var(--oasis-home-ink)] sm:px-[13px] sm:py-[7px] sm:text-[12.5px]"
+            className="rs-cta whitespace-nowrap rounded-[7px] bg-[var(--oasis-home)] px-[11px] py-[6px] text-[11.5px] font-bold text-[var(--oasis-home-ink)] sm:px-[13px] sm:py-[7px] sm:text-[12.5px]"
           >
             Get lifetime access
           </Link>
@@ -62,7 +62,7 @@ export function SiteHeader({ generatedAt }: { generatedAt: string }) {
             <SignInButton mode="modal">
               <button
                 type="button"
-                className="whitespace-nowrap rounded-[7px] border border-[var(--oasis-border-strong)] px-[11px] py-[6px] text-[11.5px] font-semibold text-[var(--oasis-text-soft)] hover:text-[var(--oasis-text)] sm:px-[13px] sm:py-[7px] sm:text-[12.5px]"
+                className="rs-cta whitespace-nowrap rounded-[7px] border border-[var(--oasis-border-strong)] px-[11px] py-[6px] text-[11.5px] font-semibold text-[var(--oasis-text-soft)] hover:text-[var(--oasis-text)] sm:px-[13px] sm:py-[7px] sm:text-[12.5px]"
               >
                 Sign in
               </button>

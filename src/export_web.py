@@ -294,6 +294,19 @@ def build_taster(matches: list, today: str = None) -> dict:
     return pinned
 
 
+def build_bookmakers(conn) -> list:
+    """Distinct bookmaker names behind the market line (Match Winner rows,
+    last 30 days), so the site can say exactly whose odds the median is."""
+    rows = conn.execute(
+        """
+        SELECT DISTINCT bookmaker FROM odds_snapshots
+        WHERE market_id = 1 AND fetched_at >= datetime('now', '-30 days')
+        ORDER BY bookmaker
+        """
+    ).fetchall()
+    return [r[0] for r in rows if r[0]]
+
+
 def build_standings(conn, league_cfg: dict) -> list:
     target_id, feeder_id = league_cfg["league_id"], league_cfg["feeder_id"]
     league_ids = [target_id] + ([feeder_id] if feeder_id else [])
@@ -503,7 +516,12 @@ def build_backtest_sections(conn) -> dict:
         " WHERE settled_at IS NOT NULL AND market_p_home IS NOT NULL"
     ).fetchall()
     mkt_ll = model_ll_on_mkt = None
+    closer_n = 0
     if mkt_rows:
+        for r in mkt_rows:
+            mp = (r["market_p_home"], r["market_p_draw"], r["market_p_away"])[r["outcome"]] / 100.0
+            if r["log_loss"] < -math.log(max(mp, 1e-15)):
+                closer_n += 1
         mkt_ll = sum(-math.log(max((r["market_p_home"], r["market_p_draw"], r["market_p_away"])[r["outcome"]] / 100.0, 1e-15)) for r in mkt_rows) / len(mkt_rows)
         model_ll_on_mkt = sum(r["log_loss"] for r in mkt_rows) / len(mkt_rows)
     live_record = {
@@ -515,6 +533,9 @@ def build_backtest_sections(conn) -> dict:
         "market_n": len(mkt_rows),
         "market_log_loss": round(mkt_ll, 4) if mkt_ll is not None else None,
         "model_log_loss_on_market": round(model_ll_on_mkt, 4) if model_ll_on_mkt is not None else None,
+        # Settled rows where the model gave the real result more probability
+        # than the bookmaker consensus did.
+        "closer_n": closer_n,
     }
 
     test_metrics = metrics.all_outcome_metrics(all_scored)
@@ -682,7 +703,8 @@ def build_recent_results(conn, retro_probs: dict = None, days: int = 7) -> list:
         SELECT f.fixture_id, f.league_id, f.kickoff_utc, f.home_goals, f.away_goals,
                th.name AS home, ta.name AS away, f.home_team_id, f.away_team_id,
                lp.p_home, lp.p_draw, lp.p_away, lp.correct, lp.log_loss,
-               lp.model_version, lp.stage, lp.settled_at
+               lp.model_version, lp.stage, lp.settled_at, lp.outcome,
+               lp.market_p_home, lp.market_p_draw, lp.market_p_away, lp.market_bookmakers
         FROM fixtures f
         JOIN teams th ON th.team_id = f.home_team_id
         JOIN teams ta ON ta.team_id = f.away_team_id
@@ -705,12 +727,28 @@ def build_recent_results(conn, retro_probs: dict = None, days: int = 7) -> list:
             retro = {**rp, "correct": top == outcome}
         locked = None
         if r["p_home"] is not None:
+            # Market benchmark on the same row: bookmaker consensus at lock
+            # time (margin removed). "closer" = whoever gave the real result
+            # more probability -- the plain-language verdict on the home page.
+            settled = r["settled_at"] is not None and r["outcome"] is not None
+            has_mkt = r["market_p_home"] is not None
+            mkt_ll = None
+            if settled and has_mkt:
+                mp = (r["market_p_home"], r["market_p_draw"], r["market_p_away"])[r["outcome"]] / 100.0
+                mkt_ll = round(-math.log(max(mp, 1e-15)), 4)
             locked = {
                 "h": r["p_home"],
                 "d": r["p_draw"],
                 "a": r["p_away"],
+                "mh": r["market_p_home"],
+                "md": r["market_p_draw"],
+                "ma": r["market_p_away"],
+                "marketBookmakers": r["market_bookmakers"],
+                "outcome": r["outcome"] if settled else None,
                 "correct": bool(r["correct"]) if r["settled_at"] else None,
                 "logLoss": r["log_loss"],
+                "marketLogLoss": mkt_ll,
+                "closer": (r["log_loss"] < mkt_ll) if (mkt_ll is not None and r["log_loss"] is not None) else None,
                 "modelVersion": r["model_version"],
                 "stage": r["stage"],
             }
@@ -849,6 +887,7 @@ def main() -> None:
         "headline": backtest["headline"],
         "live_record": backtest["live_record"],
         "recent_results": build_recent_results(conn, backtest["retro_probs"]),
+        "bookmakers": build_bookmakers(conn),
         "experiments": build_experiments(),
         "factor_glossary": FACTOR_GLOSSARY,
     }

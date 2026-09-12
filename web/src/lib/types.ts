@@ -167,8 +167,20 @@ export interface RecentResult {
     h: number;
     d: number;
     a: number;
+    /** Bookmaker consensus at lock time (median, margin removed). Null when
+     * no odds snapshot existed, or on payloads older than 2026-09-12. */
+    mh?: number | null;
+    md?: number | null;
+    ma?: number | null;
+    marketBookmakers?: number | null;
+    /** 0 home, 1 draw, 2 away; null until settled. */
+    outcome?: 0 | 1 | 2 | null;
     correct: boolean | null;
     logLoss: number | null;
+    marketLogLoss?: number | null;
+    /** True when the model gave the real result more probability than the
+     * market did; null when either side is missing. */
+    closer?: boolean | null;
     modelVersion: string;
     stage: string;
   } | null;

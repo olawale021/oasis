@@ -4,8 +4,8 @@ import { getLive } from "@/lib/live-server";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = {
-  title: "Oasis — Method",
-  description: "How the Oasis forecasts are built, tested and published.",
+  title: "RealscoreAI — Method",
+  description: "How the RealscoreAI forecasts are built, tested and published.",
 };
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
@@ -25,7 +25,7 @@ export default async function MethodPage() {
       <div className="rounded-[10px] border border-[var(--oasis-border)] bg-[var(--oasis-surface)] p-4 sm:p-5">
         <h1 className="text-[20px] font-extrabold tracking-[-0.02em] sm:text-[24px]">How the forecasts are made</h1>
         <p className="mt-2 text-[13.5px] leading-[1.7] text-[var(--oasis-text-muted)]">
-          Oasis publishes calibrated pre-match probabilities for five leagues. Every number on the site comes from the same
+          RealscoreAI publishes calibrated pre-match probabilities for five leagues. Every number on the site comes from the same
           pipeline described here, is tested on seasons the model never saw, and is frozen before kickoff so it can be
           judged afterwards. Probabilistic forecasts, not betting advice.
         </p>

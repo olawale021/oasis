@@ -44,7 +44,11 @@ export interface LiveData {
     market_n: number;
     market_log_loss: number | null;
     model_log_loss_on_market: number | null;
+    /** Settled rows where the model beat the market on the real result. */
+    closer_n?: number;
   };
+  /** Bookmakers behind the market line (last 30 days of snapshots). */
+  bookmakers?: string[];
   recent_results: RecentResult[];
   experiments: Experiment[];
   factor_glossary: Record<string, string>;

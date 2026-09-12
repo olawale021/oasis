@@ -6,7 +6,7 @@ import { getLive, getOps } from "@/lib/live-server";
 import { nowMs } from "@/lib/ops";
 
 export const dynamic = "force-dynamic";
-export const metadata: Metadata = { title: "Oasis — Admin", robots: { index: false, follow: false } };
+export const metadata: Metadata = { title: "RealscoreAI — Admin", robots: { index: false, follow: false } };
 
 export default async function AdminPage({ searchParams }: PageProps<"/admin">) {
   if (!(await isAdmin())) {
