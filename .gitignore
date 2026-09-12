@@ -7,3 +7,6 @@ node_modules/
 *.sqlite-journal
 .wrangler/
 data/
+
+# Generated hourly by the matchday chain (src/predict.py); never commit.
+outputs/
