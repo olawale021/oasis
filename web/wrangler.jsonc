@@ -7,6 +7,15 @@
 	"name": "oasis-web",
 	"compatibility_date": "2026-08-01",
 	"compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
+	// Custom domain (zone realscores.app, active 2026-09-12). Cloudflare
+	// creates the DNS records and certificate for custom_domain routes on
+	// deploy. workers.dev stays on until Clerk moves to its production
+	// instance on this domain.
+	"workers_dev": true,
+	"routes": [
+		{ "pattern": "realscores.app", "custom_domain": true },
+		{ "pattern": "www.realscores.app", "custom_domain": true }
+	],
 	"assets": {
 		"directory": ".open-next/assets",
 		"binding": "ASSETS"
