@@ -31,10 +31,13 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
       lang="en"
       className={`${instrumentSans.variable} ${jetBrainsMono.variable} h-full antialiased dark`}
     >
-      <body className="flex min-h-full flex-col bg-[var(--oasis-bg)] text-[var(--oasis-text)]">
+      {/* App shell: the header stays put and <main> is the scroller, so a
+          page can fill the viewport (the home console) or flow past it
+          (method, performance) without the window itself growing. */}
+      <body className="flex h-dvh flex-col overflow-hidden bg-[var(--oasis-bg)] text-[var(--oasis-text)]">
         <ClerkProvider appearance={{ theme: shadcn }}>
           <SiteHeader generatedAt={live.generated_at} />
-          <main className="flex-1">{children}</main>
+          <main className="min-h-0 flex-1 overflow-y-auto">{children}</main>
         </ClerkProvider>
       </body>
     </html>
