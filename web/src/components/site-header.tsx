@@ -62,6 +62,10 @@ export function SiteHeader({ generatedAt }: { generatedAt: string }) {
         </nav>
 
         <div className="ml-auto flex items-center gap-2 sm:gap-3">
+          <span className="hidden items-center gap-3 text-[12px] font-semibold text-[var(--oasis-text-dim)] lg:flex">
+            <Link href="/privacy" className={cn("transition-colors hover:text-[var(--oasis-text)]", pathname?.startsWith("/privacy") && "text-[var(--oasis-text)]")}>Privacy</Link>
+            <Link href="/terms" className={cn("transition-colors hover:text-[var(--oasis-text)]", pathname?.startsWith("/terms") && "text-[var(--oasis-text)]")}>Terms</Link>
+          </span>
           <span className="hidden items-center gap-[6px] font-mono text-[11.5px] font-medium text-[var(--oasis-text-dim)] md:flex">
             <span className="rs-live-dot h-[6px] w-[6px] rounded-full bg-[var(--oasis-positive)]" />
             data {utcClock(generatedAt)} UTC

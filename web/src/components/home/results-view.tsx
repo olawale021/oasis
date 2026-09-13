@@ -1,10 +1,12 @@
 "use client";
 
+import { useEffect, useRef, useState } from "react";
 import { TwinBar } from "@/components/probability-bar";
 import { TeamSide } from "@/components/team-logo";
 import { UnlockCta } from "@/components/unlock-cta";
 import { LEAGUE_CODES, LEAGUE_NAMES, utcDayLabel } from "@/lib/data";
 import type { LiveData } from "@/lib/data";
+import type { LeagueCode } from "@/lib/types";
 import type { RecentResult } from "@/lib/types";
 import type { Tier } from "@/lib/viewer";
 
@@ -55,15 +57,80 @@ function drawNote(s: ReturnType<typeof resultsSummary>): { v: string; sub: strin
   return { v: `${s.draws} of ${s.n}`, sub: `in line with the ${exp} our forecasts expected, so this week's accuracy is a fair read` };
 }
 
-export function ResultsHero({ rows, bookmakerCount }: { rows: RecentResult[]; bookmakerCount: number }) {
+/** Swipeable accuracy cards: overall first, then one per league that has
+ * settled results this week, each naming the model that made the calls.
+ * Scroll-snap on touch, dots and arrows on desktop. */
+function AccuracyCards({ rows, versions }: { rows: RecentResult[]; versions: Record<string, string> }) {
+  const groups: { key: string; label: string; s: ReturnType<typeof resultsSummary>; version?: string }[] = [
+    { key: "ALL", label: "All leagues", s: resultsSummary(rows) },
+    ...LEAGUE_CODES.map((lg: LeagueCode) => ({ key: lg, label: LEAGUE_NAMES[lg], s: resultsSummary(rows.filter((r) => r.lg === lg)), version: versions[lg] })).filter((g) => g.s.n > 0),
+  ];
+  const ref = useRef<HTMLDivElement>(null);
+  const [idx, setIdx] = useState(0);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const onScroll = () => setIdx(Math.round(el.scrollLeft / el.clientWidth));
+    el.addEventListener("scroll", onScroll, { passive: true });
+    return () => el.removeEventListener("scroll", onScroll);
+  }, []);
+  const go = (i: number) => {
+    const el = ref.current;
+    if (!el) return;
+    const n = (i + groups.length) % groups.length;
+    el.scrollTo({ left: n * el.clientWidth, behavior: "smooth" });
+  };
+  return (
+    <div className="rs-rise group relative flex min-w-0 flex-col rounded-[10px] border border-[var(--oasis-border)] bg-[var(--oasis-surface)]">
+      <div ref={ref} className="rs-noscroll flex snap-x snap-mandatory overflow-x-auto">
+        {groups.map((g) => {
+          const pct = g.s.n ? Math.round((100 * g.s.hits) / g.s.n) : null;
+          return (
+            <div key={g.key} className="flex w-full shrink-0 snap-start flex-col gap-[3px] p-[10px] sm:gap-1 sm:p-[12px] sm:px-[13px]">
+              <span className="truncate font-mono text-[9px] font-semibold leading-[1.3] tracking-[0.08em] text-[var(--oasis-text-dim)] sm:text-[10px] sm:tracking-[0.1em]">
+                ACCURACY · {g.label.toUpperCase()}
+              </span>
+              <span className="whitespace-nowrap font-mono text-[17px] font-bold leading-[1.1] sm:text-[21px]">{pct != null ? `${pct}%` : "—"}</span>
+              <span className="hidden text-[11.5px] font-medium leading-[1.45] text-[var(--oasis-text-muted)] sm:block">
+                {g.s.hits} of {g.s.n} top picks right this week
+                {g.s.compared ? ` · closer than the bookmakers on ${g.s.closer} of ${g.s.compared}` : ""}
+                {g.version ? <span className="block truncate font-mono text-[10px] text-[var(--oasis-text-dim)]">model {g.version}</span> : <span className="block font-mono text-[10px] text-[var(--oasis-text-dim)]">a coin would score about 33%</span>}
+              </span>
+              <span className="text-[10.5px] text-[var(--oasis-text-muted)] sm:hidden">{g.s.hits} of {g.s.n} right</span>
+            </div>
+          );
+        })}
+      </div>
+      {groups.length > 1 && (
+        <>
+          <div className="flex items-center justify-center gap-[5px] pb-[8px]">
+            {groups.map((g, i) => (
+              <button
+                key={g.key}
+                type="button"
+                aria-label={`Show ${g.label}`}
+                onClick={() => go(i)}
+                className="h-[5px] rounded-full transition-all"
+                style={{ width: i === idx ? 14 : 5, background: i === idx ? "var(--oasis-home)" : "var(--oasis-border-strong)" }}
+              />
+            ))}
+          </div>
+          <button type="button" aria-label="Previous league" onClick={() => go(idx - 1)} className="absolute left-1 top-1/2 hidden h-6 w-6 -translate-y-1/2 items-center justify-center rounded-full border border-[var(--oasis-border-strong)] bg-[var(--oasis-surface)] text-[var(--oasis-text-muted)] opacity-0 transition-opacity group-hover:opacity-100 sm:flex">
+            <svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M10 3L5 8l5 5" /></svg>
+          </button>
+          <button type="button" aria-label="Next league" onClick={() => go(idx + 1)} className="absolute right-1 top-1/2 hidden h-6 w-6 -translate-y-1/2 items-center justify-center rounded-full border border-[var(--oasis-border-strong)] bg-[var(--oasis-surface)] text-[var(--oasis-text-muted)] opacity-0 transition-opacity group-hover:opacity-100 sm:flex">
+            <svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6 3l5 5-5 5" /></svg>
+          </button>
+        </>
+      )}
+    </div>
+  );
+}
+
+export function ResultsHero({ rows, bookmakerCount, versions }: { rows: RecentResult[]; bookmakerCount: number; versions: Record<string, string> }) {
   const s = resultsSummary(rows);
   const d = drawNote(s);
   const tiles = [
-    {
-      k: "ACCURACY · TOP PICK RIGHT",
-      v: s.n ? `${Math.round((100 * s.hits) / s.n)}%` : "—",
-      sub: s.n ? `${s.hits} of ${s.n} results this week. Three outcomes, so a coin would score about 33%` : "fills in as locked forecasts settle",
-    },
     {
       k: "BEAT THE BOOKMAKERS",
       v: s.compared ? `${s.closer} of ${s.compared}` : "—",
@@ -83,11 +150,12 @@ export function ResultsHero({ rows, bookmakerCount }: { rows: RecentResult[]; bo
         </span>
       </div>
       <div className="grid grid-cols-3 gap-2 sm:gap-[10px]">
+        <AccuracyCards rows={rows} versions={versions} />
         {tiles.map((t, i) => (
           <div
             key={t.k}
             className="rs-rise flex min-w-0 flex-col gap-[3px] rounded-[10px] border border-[var(--oasis-border)] bg-[var(--oasis-surface)] p-[10px] sm:p-[12px] sm:px-[13px]"
-            style={{ animationDelay: `${i * 120}ms` }}
+            style={{ animationDelay: `${(i + 1) * 120}ms` }}
           >
             <span className="font-mono text-[9px] font-semibold leading-[1.3] tracking-[0.08em] text-[var(--oasis-text-dim)] sm:text-[10px] sm:tracking-[0.1em]">{t.k}</span>
             <span className="whitespace-nowrap font-mono text-[17px] font-bold leading-[1.1] sm:text-[21px]" style={{ color: t.color }}>{t.v}</span>

@@ -236,7 +236,7 @@ export function HomeConsole({ live, tier }: { live: LiveData; tier: Tier }) {
 
       {/* Centre column: the only thing that scrolls on desktop */}
       <div className="flex min-w-0 flex-col gap-[14px] p-3 sm:p-[18px] sm:px-5 lg:min-h-0 lg:overflow-y-auto">
-        {isResults && <ResultsHero rows={resultRows} bookmakerCount={live.bookmakers?.length ?? 0} />}
+        {isResults && <ResultsHero rows={resultRows} bookmakerCount={live.bookmakers?.length ?? 0} versions={live.model_versions} />}
         <div className="flex flex-wrap items-baseline gap-x-3 gap-y-2">
           <span className="text-[19px] font-extrabold leading-none tracking-[-0.02em] sm:text-[22px]">{heading}</span>
           <span className="font-mono text-[11.5px] font-medium text-[var(--oasis-text-muted)] sm:text-[12.5px]">
