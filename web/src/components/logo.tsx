@@ -1,4 +1,4 @@
-/** RealscoreAI mark "2E · Edge bars": three ascending bars (dim, muted,
+/** RealscoresAI mark "2E · Edge bars": three ascending bars (dim, muted,
  * edge-green) beside a weight-split wordmark. Reproduced from the approved
  * design file; header sizes are the design's dark-row values. */
 export function EdgeBars({ size = 18, className = "" }: { size?: number; className?: string }) {
@@ -18,7 +18,7 @@ export function EdgeBars({ size = 18, className = "" }: { size?: number; classNa
 export function Wordmark({ size = 19, className = "" }: { size?: number; className?: string }) {
   return (
     <span className={`flex items-baseline leading-none ${className}`} style={{ fontSize: size, letterSpacing: "-0.045em" }}>
-      <span className="font-semibold">Realscore</span>
+      <span className="font-semibold">Realscores</span>
       <span className="font-normal">AI</span>
     </span>
   );

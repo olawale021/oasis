@@ -7,6 +7,7 @@ import { usePathname } from "next/navigation";
 import { utcClock } from "@/lib/data";
 import { cn } from "@/lib/utils";
 import { Logo } from "@/components/logo";
+import { ThemeToggle } from "@/components/theme-toggle";
 
 const NAV_LINKS = [
   { label: "Today", href: "/", match: (p: string) => p === "/" },
@@ -38,7 +39,7 @@ export function SiteHeader({ generatedAt }: { generatedAt: string }) {
   return (
     <header className="relative z-40 border-b border-[var(--oasis-border)] bg-[var(--oasis-surface)]">
       <div className="relative z-50 flex w-full items-center gap-4 bg-[var(--oasis-surface)] px-4 py-3 sm:gap-[26px] sm:px-[22px] sm:py-[14px]">
-        <Link href="/" className="flex items-center" aria-label="RealscoreAI home">
+        <Link href="/" className="flex items-center" aria-label="RealscoresAI home">
           <Logo size={19} />
         </Link>
 
@@ -85,6 +86,7 @@ export function SiteHeader({ generatedAt }: { generatedAt: string }) {
           <Show when="signed-in">
             <UserButton />
           </Show>
+          <ThemeToggle className="hidden sm:flex" />
           <button
             type="button"
             aria-label={open ? "Close menu" : "Open menu"}
@@ -161,9 +163,13 @@ export function SiteHeader({ generatedAt }: { generatedAt: string }) {
                 Get lifetime access
               </Link>
             </div>
-            <div className="flex items-center justify-between px-4 pb-3 font-mono text-[10.5px] font-medium text-[var(--oasis-text-dim)]">
+            <div className="flex items-center justify-between gap-3 px-4 pb-3 font-mono text-[10.5px] font-medium text-[var(--oasis-text-dim)]">
               <span className="flex items-center gap-[6px]"><span className="rs-live-dot h-[6px] w-[6px] rounded-full bg-[var(--oasis-positive)]" />data {utcClock(generatedAt)} UTC</span>
-              <span>five leagues · locked before kickoff</span>
+              <span className="flex items-center gap-3">
+                <Link href="/privacy" onClick={() => setOpen(false)} className="text-[var(--oasis-text-muted)]">Privacy</Link>
+                <Link href="/terms" onClick={() => setOpen(false)} className="text-[var(--oasis-text-muted)]">Terms</Link>
+                <ThemeToggle />
+              </span>
             </div>
           </nav>
         </div>

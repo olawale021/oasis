@@ -69,6 +69,7 @@
   --oasis-positive: #2fcf9a;
   --oasis-positive-tint: rgba(47, 207, 154, 0.1);
   --oasis-warn: #eaa96e;
+  color-scheme: dark;
 
   --background: var(--oasis-bg);
   --foreground: var(--oasis-text);
@@ -102,6 +103,33 @@
   --sidebar-accent-foreground: var(--oasis-text);
   --sidebar-border: var(--oasis-border);
   --sidebar-ring: var(--oasis-home);
+}
+
+/* Light theme: same token names, lighter ground, data colours kept so bars
+   read identically. Text accents darkened for contrast on white. */
+html.light {
+  --oasis-bg: #f4f6f9;
+  --oasis-bg-rail: #eef1f5;
+  --oasis-surface: #ffffff;
+  --oasis-surface-raised: #e9edf3;
+  --oasis-border: #dfe4ec;
+  --oasis-border-strong: #c7d0dc;
+  --oasis-border-row: #e8ecf1;
+  --oasis-hover-row: #f0f3f7;
+  --oasis-text: #14181e;
+  --oasis-text-soft: #2b3340;
+  --oasis-text-muted: #5b6675;
+  --oasis-text-dim: #7a8594;
+  --oasis-text-faint: #98a2b0;
+  --oasis-home: #3b8be6;
+  --oasis-home-tint: rgba(59, 139, 230, 0.12);
+  --oasis-home-ink: #ffffff;
+  --oasis-draw: #6b7686;
+  --oasis-away: #d9782c;
+  --oasis-positive: #1a9c6e;
+  --oasis-positive-tint: rgba(26, 156, 110, 0.1);
+  --oasis-warn: #b7681d;
+  color-scheme: light;
 }
 
 .dark {

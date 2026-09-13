@@ -552,7 +552,7 @@ export function HomeConsole({ live, tier }: { live: LiveData; tier: Tier }) {
               <span
                 key={i}
                 className="flex-1 rounded-[2px]"
-                style={{ height: `${Math.max(4, h)}%`, background: i === live.calibration_bars.length - 1 ? "var(--oasis-home)" : "#2b3a52" }}
+                style={{ height: `${Math.max(4, h)}%`, background: i === live.calibration_bars.length - 1 ? "var(--oasis-home)" : "var(--oasis-border-strong)" }}
               />
             ))}
           </div>
@@ -578,6 +578,10 @@ export function HomeConsole({ live, tier }: { live: LiveData; tier: Tier }) {
 
         <div className="font-mono text-[10px] font-medium leading-[1.6] text-[var(--oasis-text-faint)]">
           Probabilistic forecasts, not guarantees and not betting advice. 18+ · responsible use.
+          <span className="mt-1 flex gap-3">
+            <Link href="/privacy" className="text-[var(--oasis-text-dim)] hover:text-[var(--oasis-text)]">Privacy</Link>
+            <Link href="/terms" className="text-[var(--oasis-text-dim)] hover:text-[var(--oasis-text)]">Terms</Link>
+          </span>
         </div>
       </div>
     </div>

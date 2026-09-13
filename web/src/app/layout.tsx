@@ -19,7 +19,7 @@ const jetBrainsMono = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "RealscoreAI — Five-League Football Forecasts",
+  title: "RealscoresAI — Five-League Football Forecasts",
   description:
     "Transparent, calibrated pre-match probabilities for the Premier League, La Liga, Serie A, Bundesliga and MLS. Probabilistic forecasts, not betting advice.",
 };
@@ -29,8 +29,17 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html
       lang="en"
+      suppressHydrationWarning
       className={`${instrumentSans.variable} ${jetBrainsMono.variable} h-full antialiased dark`}
     >
+      <head>
+        {/* Theme before first paint: stored choice wins, else dark (brand default). */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `(function(){try{var t=localStorage.getItem("rs-theme");if(t==="light"){document.documentElement.classList.remove("dark");document.documentElement.classList.add("light");}}catch(e){}})();`,
+          }}
+        />
+      </head>
       {/* App shell: the header stays put and <main> is the scroller, so a
           page can fill the viewport (the home console) or flow past it
           (method, performance) without the window itself growing. */}
