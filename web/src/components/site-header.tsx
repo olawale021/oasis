@@ -38,7 +38,7 @@ export function SiteHeader({ generatedAt }: { generatedAt: string }) {
 
   return (
     <header className="relative z-40 border-b border-[var(--oasis-border)] bg-[var(--oasis-surface)]">
-      <div className="relative z-50 flex w-full items-center gap-4 bg-[var(--oasis-surface)] px-4 py-3 sm:gap-[26px] sm:px-[22px] sm:py-[14px]">
+      <div className="relative z-50 flex w-full items-center gap-3 bg-[var(--oasis-surface)] px-3 py-3 sm:gap-[26px] sm:px-[22px] sm:py-[14px]">
         <Link href="/" className="flex items-center" aria-label="RealscoresAI home">
           <Logo size={19} />
         </Link>
@@ -61,7 +61,7 @@ export function SiteHeader({ generatedAt }: { generatedAt: string }) {
           <span className="cursor-default text-[var(--oasis-text-muted)]">Pricing</span>
         </nav>
 
-        <div className="ml-auto flex items-center gap-3">
+        <div className="ml-auto flex items-center gap-2 sm:gap-3">
           <span className="hidden items-center gap-[6px] font-mono text-[11.5px] font-medium text-[var(--oasis-text-dim)] md:flex">
             <span className="rs-live-dot h-[6px] w-[6px] rounded-full bg-[var(--oasis-positive)]" />
             data {utcClock(generatedAt)} UTC
@@ -86,7 +86,7 @@ export function SiteHeader({ generatedAt }: { generatedAt: string }) {
           <Show when="signed-in">
             <UserButton />
           </Show>
-          <ThemeToggle className="hidden sm:flex" />
+          <ThemeToggle />
           <button
             type="button"
             aria-label={open ? "Close menu" : "Open menu"}
@@ -168,7 +168,6 @@ export function SiteHeader({ generatedAt }: { generatedAt: string }) {
               <span className="flex items-center gap-3">
                 <Link href="/privacy" onClick={() => setOpen(false)} className="text-[var(--oasis-text-muted)]">Privacy</Link>
                 <Link href="/terms" onClick={() => setOpen(false)} className="text-[var(--oasis-text-muted)]">Terms</Link>
-                <ThemeToggle />
               </span>
             </div>
           </nav>
