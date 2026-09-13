@@ -121,6 +121,10 @@
   }
 }
 
+/* Horizontal chip rows: scroll, but never show the scrollbar line. */
+.rs-noscroll { scrollbar-width: none; -ms-overflow-style: none; }
+.rs-noscroll::-webkit-scrollbar { display: none; }
+
 /* ---- Motion: one orchestrated load sequence, then quiet. Under
    prefers-reduced-motion everything collapses to an opacity-only fade
    (no movement, no scaling). Easing shared everywhere. ---- */

@@ -55,10 +55,9 @@ function drawNote(s: ReturnType<typeof resultsSummary>): { v: string; sub: strin
   return { v: `${s.draws} of ${s.n}`, sub: `in line with the ${exp} our forecasts expected, so this week's accuracy is a fair read` };
 }
 
-export function ResultsHero({ rows, live, bookmakerCount }: { rows: RecentResult[]; live: LiveData; bookmakerCount: number }) {
+export function ResultsHero({ rows, bookmakerCount }: { rows: RecentResult[]; bookmakerCount: number }) {
   const s = resultsSummary(rows);
   const d = drawNote(s);
-  const lr = live.live_record;
   const tiles = [
     {
       k: "ACCURACY · TOP PICK RIGHT",
@@ -97,11 +96,6 @@ export function ResultsHero({ rows, live, bookmakerCount }: { rows: RecentResult
         ))}
       </div>
       <p className="m-0 text-[11.5px] font-medium leading-[1.5] text-[var(--oasis-text-muted)] sm:hidden">{d.sub}.</p>
-      {lr.settled > 0 && (
-        <span className="font-mono text-[10.5px] text-[var(--oasis-text-faint)]">
-          Season so far: {lr.accuracy != null ? `${Math.round(lr.accuracy)}% accuracy` : "—"} · closer than the bookmakers on {lr.closer_n ?? "—"} of {lr.market_n} · {lr.settled} settled forecasts, none removed.
-        </span>
-      )}
     </div>
   );
 }

@@ -110,7 +110,7 @@ export function HomeConsole({ live, tier }: { live: LiveData; tier: Tier }) {
           <div className="hidden font-mono text-[10px] font-semibold tracking-[0.1em] text-[var(--oasis-text-dim)] lg:block">
             LEAGUES
           </div>
-          <div className="flex gap-[6px] overflow-x-auto pb-1 lg:flex-col lg:gap-2 lg:overflow-visible lg:pb-0">
+          <div className="rs-noscroll flex gap-[6px] overflow-x-auto lg:flex-col lg:gap-2 lg:overflow-visible">
             {(["ALL", ...LEAGUE_CODES] as LeagueFilter[]).map((code) => {
               const active = league === code;
               return (
@@ -236,7 +236,7 @@ export function HomeConsole({ live, tier }: { live: LiveData; tier: Tier }) {
 
       {/* Centre column: the only thing that scrolls on desktop */}
       <div className="flex min-w-0 flex-col gap-[14px] p-3 sm:p-[18px] sm:px-5 lg:min-h-0 lg:overflow-y-auto">
-        {isResults && <ResultsHero rows={resultRows} live={live} bookmakerCount={live.bookmakers?.length ?? 0} />}
+        {isResults && <ResultsHero rows={resultRows} bookmakerCount={live.bookmakers?.length ?? 0} />}
         <div className="flex flex-wrap items-baseline gap-x-3 gap-y-2">
           <span className="text-[19px] font-extrabold leading-none tracking-[-0.02em] sm:text-[22px]">{heading}</span>
           <span className="font-mono text-[11.5px] font-medium text-[var(--oasis-text-muted)] sm:text-[12.5px]">
@@ -245,6 +245,7 @@ export function HomeConsole({ live, tier }: { live: LiveData; tier: Tier }) {
               ? `${resultRows.length} settled · last 7 days`
               : `${rows.length} ${rows.length === 1 ? "match" : "matches"}`}
           </span>
+          {tier !== "anon" && (
           <span className="ml-auto flex flex-wrap gap-[6px] text-[11.5px] font-semibold">
             {DAY_TABS.map((tab) => (
               <button
@@ -262,10 +263,11 @@ export function HomeConsole({ live, tier }: { live: LiveData; tier: Tier }) {
               </button>
             ))}
           </span>
+          )}
         </div>
 
         {/* Phone: the rail filters live here as a scrolling chip row */}
-        <div className="-mx-3 flex gap-[6px] overflow-x-auto px-3 pb-1 lg:hidden">
+        <div className="rs-noscroll -mx-3 flex gap-[6px] overflow-x-auto px-3 lg:hidden">
           {isResults
             ? RESULT_FILTERS.map((f) => {
                 const active = resultFilter === f.key;
@@ -315,7 +317,7 @@ export function HomeConsole({ live, tier }: { live: LiveData; tier: Tier }) {
               </>
             )}
         </div>
-        {isResults && !premium && <SignInStrip tier={tier} />}
+        {isResults && tier === "free" && <SignInStrip tier={tier} />}
         {isResults && <ResultsList rows={resultRows} filter={resultFilter} />}
 
         {dayTab !== "Results" && (<>

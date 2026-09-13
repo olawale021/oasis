@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import { Show, SignInButton, UserButton } from "@clerk/nextjs";
 import { usePathname } from "next/navigation";
@@ -15,6 +16,7 @@ const NAV_LINKS = [
 
 export function SiteHeader({ generatedAt }: { generatedAt: string }) {
   const pathname = usePathname();
+  const [open, setOpen] = useState(false);
 
   return (
     <header className="border-b border-[var(--oasis-border)] bg-[var(--oasis-surface)]">
@@ -56,13 +58,14 @@ export function SiteHeader({ generatedAt }: { generatedAt: string }) {
             href="/pricing"
             className="rs-cta whitespace-nowrap rounded-[7px] bg-[var(--oasis-home)] px-[11px] py-[6px] text-[11.5px] font-bold text-[var(--oasis-home-ink)] sm:px-[13px] sm:py-[7px] sm:text-[12.5px]"
           >
-            Get lifetime access
+            <span className="sm:hidden">Lifetime access</span>
+            <span className="hidden sm:inline">Get lifetime access</span>
           </Link>
           <Show when="signed-out">
             <SignInButton mode="modal">
               <button
                 type="button"
-                className="rs-cta whitespace-nowrap rounded-[7px] border border-[var(--oasis-border-strong)] px-[11px] py-[6px] text-[11.5px] font-semibold text-[var(--oasis-text-soft)] hover:text-[var(--oasis-text)] sm:px-[13px] sm:py-[7px] sm:text-[12.5px]"
+                className="rs-cta hidden whitespace-nowrap rounded-[7px] border border-[var(--oasis-border-strong)] px-[11px] py-[6px] text-[11.5px] font-semibold text-[var(--oasis-text-soft)] hover:text-[var(--oasis-text)] sm:inline-block sm:px-[13px] sm:py-[7px] sm:text-[12.5px]"
               >
                 Sign in
               </button>
@@ -71,26 +74,50 @@ export function SiteHeader({ generatedAt }: { generatedAt: string }) {
           <Show when="signed-in">
             <UserButton />
           </Show>
+          <button
+            type="button"
+            aria-label={open ? "Close menu" : "Open menu"}
+            aria-expanded={open}
+            onClick={() => setOpen((v) => !v)}
+            className="flex h-8 w-8 items-center justify-center rounded-[7px] border border-[var(--oasis-border-strong)] text-[var(--oasis-text-soft)] sm:hidden"
+          >
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round">
+              {open ? (
+                <><path d="M3 3l10 10" /><path d="M13 3L3 13" /></>
+              ) : (
+                <><path d="M2 4h12" /><path d="M2 8h12" /><path d="M2 12h12" /></>
+              )}
+            </svg>
+          </button>
         </div>
       </div>
 
-      <nav className="flex items-center gap-5 overflow-x-auto px-4 pb-[10px] text-[12.5px] font-semibold sm:hidden">
-        {NAV_LINKS.map((link) => (
-          <Link
-            key={link.href}
-            href={link.href}
-            className={cn(
-              "whitespace-nowrap transition-colors",
-              link.match(pathname ?? "")
-                ? "text-[var(--oasis-text)]"
-                : "text-[var(--oasis-text-muted)]",
-            )}
-          >
-            {link.label}
+      {open && (
+        <nav className="flex flex-col border-t border-[var(--oasis-border)] px-4 py-2 text-[14px] font-semibold sm:hidden">
+          {NAV_LINKS.map((link) => (
+            <Link
+              key={link.href}
+              href={link.href}
+              onClick={() => setOpen(false)}
+              className={cn(
+                "border-b border-[var(--oasis-border-row)] py-[11px] last:border-0",
+                link.match(pathname ?? "") ? "text-[var(--oasis-text)]" : "text-[var(--oasis-text-muted)]",
+              )}
+            >
+              {link.label}
+            </Link>
+          ))}
+          <Link href="/pricing" onClick={() => setOpen(false)} className="border-b border-[var(--oasis-border-row)] py-[11px] text-[var(--oasis-text-muted)]">
+            Pricing
           </Link>
-        ))}
-        <span className="cursor-default whitespace-nowrap text-[var(--oasis-text-muted)]">Pricing</span>
-      </nav>
+          <Show when="signed-out">
+            <SignInButton mode="modal">
+              <button type="button" className="py-[11px] text-left text-[var(--oasis-home)]">Sign in</button>
+            </SignInButton>
+          </Show>
+          <span className="py-[8px] font-mono text-[11px] font-medium text-[var(--oasis-text-dim)]">data {utcClock(generatedAt)} UTC</span>
+        </nav>
+      )}
     </header>
   );
 }
