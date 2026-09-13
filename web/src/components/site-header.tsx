@@ -42,7 +42,7 @@ export function SiteHeader({ generatedAt }: { generatedAt: string }) {
           <Logo size={19} />
         </Link>
 
-        <nav className="hidden items-center gap-5 text-[13.5px] font-semibold sm:flex">
+        <nav className="hidden items-center gap-5 text-[13.5px] font-semibold sm:flex md:absolute md:left-1/2 md:-translate-x-1/2">
           {NAV_LINKS.map((link) => (
             <Link
               key={link.href}
