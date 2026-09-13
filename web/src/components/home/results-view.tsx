@@ -17,72 +17,89 @@ const OUTCOME_COLOR = ["var(--oasis-home)", "var(--oasis-text-soft)", "var(--oas
 /** Rows are the public record: locked before kickoff, settled, never
  * edited. Retro reconstructions are excluded upstream. */
 export function resultsSummary(rows: RecentResult[]) {
-  let n = 0, closer = 0, compared = 0, hits = 0, draws = 0, ll = 0, mll = 0;
+  let n = 0, closer = 0, compared = 0, hits = 0, draws = 0, ll = 0, mll = 0, expDraws = 0, mktExpDraws = 0;
   for (const r of rows) {
     const l = r.locked;
     if (!l || l.correct === null) continue;
     n += 1;
     if (l.correct) hits += 1;
     if (l.outcome === 1) draws += 1;
+    expDraws += l.d / 100;
+    if (l.md != null) mktExpDraws += l.md / 100;
     if (l.closer != null && l.logLoss != null && l.marketLogLoss != null) {
       compared += 1; ll += l.logLoss; mll += l.marketLogLoss;
       if (l.closer) closer += 1;
     }
   }
-  return { n, closer, compared, hits, draws, ll: compared ? ll / compared : null, mll: compared ? mll / compared : null };
+  return { n, closer, compared, hits, draws, expDraws, mktExpDraws, ll: compared ? ll / compared : null, mll: compared ? mll / compared : null };
+}
+
+/** Plain-language read on the week's draws, computed from the data so it
+ * updates itself. "Unusual" means observed draws exceed what the forecasts
+ * summed to by more than about two matches' worth of noise. */
+function drawNote(s: ReturnType<typeof resultsSummary>): { v: string; sub: string; tone?: string } {
+  if (!s.n) return { v: "—", sub: "no settled forecasts yet" };
+  const exp = Math.round(s.expDraws);
+  const sd = Math.sqrt(Math.max(1, s.expDraws * (1 - s.expDraws / s.n)));
+  const excess = s.draws - s.expDraws;
+  if (excess > 1.5 * sd) {
+    return {
+      v: `${s.draws} of ${s.n}`,
+      sub: `a draw-heavy week: our forecasts expected about ${exp}. Draws are the hardest result to call and every forecaster, us and the bookmakers, misses in a week like this`,
+      tone: "var(--oasis-warn)",
+    };
+  }
+  if (excess < -1.5 * sd) {
+    return { v: `${s.draws} of ${s.n}`, sub: `fewer draws than usual: our forecasts expected about ${exp}, which flatters everyone's accuracy this week` };
+  }
+  return { v: `${s.draws} of ${s.n}`, sub: `in line with the ${exp} our forecasts expected, so this week's accuracy is a fair read` };
 }
 
 export function ResultsHero({ rows, live, bookmakerCount }: { rows: RecentResult[]; live: LiveData; bookmakerCount: number }) {
   const s = resultsSummary(rows);
+  const d = drawNote(s);
+  const lr = live.live_record;
   const tiles = [
     {
-      k: "CLOSER THAN THE BOOKMAKERS",
+      k: "ACCURACY · TOP PICK RIGHT",
+      v: s.n ? `${Math.round((100 * s.hits) / s.n)}%` : "—",
+      sub: s.n ? `${s.hits} of ${s.n} results this week. Three outcomes, so a coin would score about 33%` : "fills in as locked forecasts settle",
+    },
+    {
+      k: "BEAT THE BOOKMAKERS",
       v: s.compared ? `${s.closer} of ${s.compared}` : "—",
-      sub: s.compared ? "results this week where our forecast gave the real outcome more chance than the odds did" : "fills in as locked forecasts settle",
-      color: s.compared ? "var(--oasis-positive)" : undefined,
+      sub: s.compared && s.ll != null && s.mll != null
+        ? `results where we gave the real outcome more chance than ${bookmakerCount || "the"} bookmakers did · forecast error ${s.ll.toFixed(3)} v ${s.mll.toFixed(3)}, lower is better`
+        : "needs odds at lock time",
+      color: s.compared ? (s.closer * 2 >= s.compared ? "var(--oasis-positive)" : "var(--oasis-warn)") : undefined,
     },
-    {
-      k: "FORECAST ERROR · LOG LOSS",
-      v: s.ll != null && s.mll != null ? <>{s.ll.toFixed(3)} <span className="text-[14px] text-[var(--oasis-text-dim)]">v</span> {s.mll.toFixed(3)}</> : "—",
-      sub: "us v market · lower is better · one weekend moves this a lot, one season settles it",
-    },
-    {
-      k: "TOP PICK CORRECT",
-      v: s.n ? `${s.hits} of ${s.n}` : "—",
-      sub: s.n ? `${s.draws} of ${s.n} finished as draws` : "no settled forecasts yet",
-    },
+    { k: "DRAWS THIS WEEK", v: d.v, sub: d.sub, color: d.tone },
   ];
   return (
-    <div className="flex flex-col gap-[14px]">
-      <div className="flex max-w-[760px] flex-col gap-2">
+    <div className="flex flex-col gap-[10px]">
+      <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
         <span className="font-mono text-[10px] font-semibold tracking-[0.1em] text-[var(--oasis-text-dim)]">SCORED AGAINST THE BOOKMAKERS</span>
-        <h1 className="m-0 text-[21px] font-extrabold leading-[1.18] tracking-[-0.02em] sm:text-[27px]" style={{ textWrap: "pretty" }}>
-          Every forecast is locked before kickoff, then scored against the bookmakers on what actually happened.
-        </h1>
-        <p className="m-0 text-[12.5px] leading-[1.65] text-[var(--oasis-text-muted)] sm:text-[13.5px]" style={{ textWrap: "pretty" }}>
-          The bar is our forecast. The thin line beneath it is what {bookmakerCount || "the"} bookmakers implied at the same moment, with their margin
-          removed. After the final whistle, the one that gave more chance to the real result was closer.
-        </p>
+        <span className="text-[13px] font-semibold text-[var(--oasis-text-soft)] sm:text-[14px]">
+          Every forecast is locked before kickoff, then scored on what actually happened.
+        </span>
       </div>
       <div className="grid grid-cols-3 gap-2 sm:gap-[10px]">
         {tiles.map((t, i) => (
           <div
             key={t.k}
-            className="rs-rise flex min-w-0 flex-col gap-[3px] rounded-[10px] border border-[var(--oasis-border)] bg-[var(--oasis-surface)] p-[10px] sm:gap-1 sm:p-[13px] sm:px-[14px]"
+            className="rs-rise flex min-w-0 flex-col gap-[3px] rounded-[10px] border border-[var(--oasis-border)] bg-[var(--oasis-surface)] p-[10px] sm:p-[12px] sm:px-[13px]"
             style={{ animationDelay: `${i * 120}ms` }}
           >
             <span className="font-mono text-[9px] font-semibold leading-[1.3] tracking-[0.08em] text-[var(--oasis-text-dim)] sm:text-[10px] sm:tracking-[0.1em]">{t.k}</span>
-            <span className="whitespace-nowrap font-mono text-[16px] font-bold leading-[1.1] sm:text-[22px]" style={{ color: t.color }}>{t.v}</span>
-            <span className="hidden text-[12px] font-medium leading-[1.45] text-[var(--oasis-text-muted)] sm:block">{t.sub}</span>
+            <span className="whitespace-nowrap font-mono text-[17px] font-bold leading-[1.1] sm:text-[21px]" style={{ color: t.color }}>{t.v}</span>
+            <span className="hidden text-[11.5px] font-medium leading-[1.45] text-[var(--oasis-text-muted)] sm:block">{t.sub}</span>
           </div>
         ))}
       </div>
-      <p className="m-0 flex flex-col gap-[6px] text-[12.5px] font-medium leading-[1.45] text-[var(--oasis-text-muted)] sm:hidden">
-        Whoever gave the real result more chance was closer. Nothing here was edited after kickoff.
-      </p>
-      {live.live_record.settled > s.n && (
+      <p className="m-0 text-[11.5px] font-medium leading-[1.5] text-[var(--oasis-text-muted)] sm:hidden">{d.sub}.</p>
+      {lr.settled > 0 && (
         <span className="font-mono text-[10.5px] text-[var(--oasis-text-faint)]">
-          Season record: {live.live_record.closer_n ?? "—"} of {live.live_record.market_n} closer than the market across {live.live_record.settled} settled forecasts.
+          Season so far: {lr.accuracy != null ? `${Math.round(lr.accuracy)}% accuracy` : "—"} · closer than the bookmakers on {lr.closer_n ?? "—"} of {lr.market_n} · {lr.settled} settled forecasts, none removed.
         </span>
       )}
     </div>

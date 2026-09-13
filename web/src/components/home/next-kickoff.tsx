@@ -24,7 +24,6 @@ function fmt(ms: number): string {
 export function NextKickoff({ matches }: { matches: MatchRecord[] }) {
   const [now, setNow] = useState<number>(() => Date.now());
   useEffect(() => {
-    setNow(Date.now());
     const t = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(t);
   }, []);
