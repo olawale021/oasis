@@ -59,7 +59,15 @@ export function HomeConsole({ live, tier }: { live: LiveData; tier: Tier }) {
       const stamp = utcDayStamp(target);
       out = out.filter((m) => m.kickoffUtc.slice(0, 10) === stamp);
     }
-    return out;
+    // Day, then league in the site's fixed order, then kickoff: the board
+    // reads as short per-league lists under each day, like Results.
+    const rank = (lg: string) => LEAGUE_CODES.indexOf(lg as (typeof LEAGUE_CODES)[number]);
+    return [...out].sort(
+      (a, b) =>
+        a.kickoffUtc.slice(0, 10).localeCompare(b.kickoffUtc.slice(0, 10)) ||
+        rank(a.lg) - rank(b.lg) ||
+        a.kickoffUtc.localeCompare(b.kickoffUtc),
+    );
   }, [derived, league, confirmedOnly, highConfOnly, edgeOnly, dayTab]);
 
   const leagueCounts = useMemo(() => {
@@ -354,12 +362,22 @@ export function HomeConsole({ live, tier }: { live: LiveData; tier: Tier }) {
         {rows.map((m, idx) => {
           const isOpen = expanded === m.id;
           const day = m.kickoffUtc.slice(0, 10);
-          const showDay = dayTab === "Week" && (idx === 0 || rows[idx - 1].kickoffUtc.slice(0, 10) !== day);
+          const newDay = idx === 0 || rows[idx - 1].kickoffUtc.slice(0, 10) !== day;
+          const showDay = dayTab === "Week" && newDay;
+          const showLeague = newDay || rows[idx - 1].lg !== m.lg;
+          const groupN = rows.filter((r) => r.kickoffUtc.slice(0, 10) === day && r.lg === m.lg).length;
           return (
             <div key={m.id}>
               {showDay && (
-                <div className="pb-[6px] pt-2 font-mono text-[12.5px] font-semibold tracking-[0.08em] text-[var(--oasis-text-dim)]">
+                <div className="pb-[2px] pt-3 font-mono text-[12.5px] font-semibold tracking-[0.08em] text-[var(--oasis-text-dim)]">
                   {utcDayLabel(m.kickoffUtc).toUpperCase()}
+                </div>
+              )}
+              {showLeague && (
+                <div className="flex items-center gap-2 pb-[2px] pt-[10px]">
+                  <span className="text-[12.5px] font-bold tracking-[-0.01em] text-[var(--oasis-text-soft)]">{LEAGUE_NAMES[m.lg]}</span>
+                  <span className="font-mono text-[10.5px] font-medium text-[var(--oasis-text-dim)]">{groupN}</span>
+                  <span className="h-px flex-1 bg-[var(--oasis-border)]" />
                 </div>
               )}
               <div className="rs-row cursor-pointer border-b border-[var(--oasis-border-row)]">
@@ -383,7 +401,7 @@ export function HomeConsole({ live, tier }: { live: LiveData; tier: Tier }) {
                         className="w-full text-center font-mono text-[10.5px] font-medium leading-[1.35] md:text-[11.5px]"
                         style={{ color: m.statusConfirmed ? "var(--oasis-positive)" : "var(--oasis-text-muted)" }}
                       >
-                        {m.metaLabel}
+                        {m.ko} UTC{m.statusConfirmed ? " · lineups confirmed" : ""}
                       </span>
                     </span>
                     <TeamSide
