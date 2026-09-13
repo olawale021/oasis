@@ -105,9 +105,9 @@ export function HomeConsole({ live, tier }: { live: LiveData; tier: Tier }) {
   return (
     <div className="grid w-full grid-cols-1 lg:h-full lg:grid-cols-[212px_1fr_268px] lg:overflow-hidden">
       {/* Left rail */}
-      <div className="flex min-w-0 flex-col gap-[14px] border-b border-[var(--oasis-border)] bg-[var(--oasis-bg-rail)] p-3 lg:min-h-0 lg:gap-[22px] lg:overflow-y-auto lg:border-b-0 lg:border-r lg:p-4">
+      <div className="flex min-w-0 flex-col gap-[14px] border-b border-[var(--oasis-border)] bg-[var(--oasis-bg-rail)] px-3 py-2 lg:min-h-0 lg:gap-[22px] lg:overflow-y-auto lg:border-b-0 lg:border-r lg:p-4">
         <div className="flex flex-col gap-2">
-          <div className="font-mono text-[10px] font-semibold tracking-[0.1em] text-[var(--oasis-text-dim)]">
+          <div className="hidden font-mono text-[10px] font-semibold tracking-[0.1em] text-[var(--oasis-text-dim)] lg:block">
             LEAGUES
           </div>
           <div className="flex gap-[6px] overflow-x-auto pb-1 lg:flex-col lg:gap-2 lg:overflow-visible lg:pb-0">
@@ -139,7 +139,7 @@ export function HomeConsole({ live, tier }: { live: LiveData; tier: Tier }) {
         </div>
 
         {isResults && (
-          <div className="flex flex-col gap-[9px]">
+          <div className="hidden flex-col gap-[9px] lg:flex">
             <div className="font-mono text-[10px] font-semibold tracking-[0.1em] text-[var(--oasis-text-dim)]">SHOW</div>
             <div className="flex flex-wrap gap-2 lg:flex-col lg:gap-[9px]">
               {RESULT_FILTERS.map((f) => {
@@ -164,7 +164,7 @@ export function HomeConsole({ live, tier }: { live: LiveData; tier: Tier }) {
           </div>
         )}
         {!isResults && (
-        <div className="flex flex-col gap-[9px]">
+        <div className="hidden flex-col gap-[9px] lg:flex">
           <div className="font-mono text-[10px] font-semibold tracking-[0.1em] text-[var(--oasis-text-dim)]">
             FILTERS
           </div>
@@ -220,7 +220,7 @@ export function HomeConsole({ live, tier }: { live: LiveData; tier: Tier }) {
         </div>
         )}
 
-        <div className="rounded-[9px] border border-[var(--oasis-border)] bg-[var(--oasis-surface)] p-[11px]">
+        <div className="hidden rounded-[9px] border border-[var(--oasis-border)] bg-[var(--oasis-surface)] p-[11px] lg:block">
           <div className="font-mono text-[10px] font-semibold tracking-[0.1em] text-[var(--oasis-text-dim)]">
             DATA FRESHNESS (UTC)
           </div>
@@ -263,6 +263,57 @@ export function HomeConsole({ live, tier }: { live: LiveData; tier: Tier }) {
           </span>
         </div>
 
+        {/* Phone: the rail filters live here as a scrolling chip row */}
+        <div className="-mx-3 flex gap-[6px] overflow-x-auto px-3 pb-1 lg:hidden">
+          {isResults
+            ? RESULT_FILTERS.map((f) => {
+                const active = resultFilter === f.key;
+                return (
+                  <button
+                    key={f.key}
+                    type="button"
+                    onClick={() => setResultFilter(f.key)}
+                    className="rs-tab flex-none whitespace-nowrap rounded-full px-[11px] py-[6px] text-[11.5px] font-semibold"
+                    style={
+                      active
+                        ? { color: "var(--oasis-positive)", background: "var(--oasis-positive-tint)", border: "1px solid rgba(47,207,154,.35)" }
+                        : { color: "var(--oasis-text-muted)", border: "1px solid var(--oasis-border)" }
+                    }
+                  >
+                    {f.label} · {resultCounts[f.key]}
+                  </button>
+                );
+              })
+            : (
+              <>
+                <button
+                  type="button"
+                  onClick={() => setConfirmedOnly((v) => !v)}
+                  className="rs-tab flex-none whitespace-nowrap rounded-full px-[11px] py-[6px] text-[11.5px] font-semibold"
+                  style={
+                    confirmedOnly
+                      ? { color: "var(--oasis-positive)", background: "var(--oasis-positive-tint)", border: "1px solid rgba(47,207,154,.35)" }
+                      : { color: "var(--oasis-text-muted)", border: "1px solid var(--oasis-border)" }
+                  }
+                >
+                  {confirmedOnly ? "Lineups confirmed ✓" : "Lineups confirmed"}
+                </button>
+                <button
+                  type="button"
+                  disabled={!premium}
+                  onClick={() => setHighConfOnly((v) => !v)}
+                  className="rs-tab flex-none whitespace-nowrap rounded-full px-[11px] py-[6px] text-[11.5px] font-semibold"
+                  style={
+                    highConfOnly
+                      ? { color: "var(--oasis-positive)", background: "var(--oasis-positive-tint)", border: "1px solid rgba(47,207,154,.35)" }
+                      : { color: "var(--oasis-text-muted)", border: "1px solid var(--oasis-border)" }
+                  }
+                >
+                  {highConfOnly ? "High confidence ✓" : premium ? "High confidence" : "High confidence 🔒"}
+                </button>
+              </>
+            )}
+        </div>
         {isResults && !premium && <SignInStrip tier={tier} />}
         {isResults && <ResultsList rows={resultRows} filter={resultFilter} />}
 
