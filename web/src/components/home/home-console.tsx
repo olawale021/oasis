@@ -11,6 +11,7 @@ import { deriveMatch, sortByKickoff } from "@/lib/derive";
 import type { DerivedMatch, LeagueFilter } from "@/lib/types";
 import { TeamSide } from "@/components/team-logo";
 import { HowToReadCard, LiveRecordCard, MarketCard, ResultsHero, ResultsList, SignInStrip, type ResultsFilter } from "@/components/home/results-view";
+import { NextKickoff } from "@/components/home/next-kickoff";
 
 const DAY_TABS = ["Today", "Tomorrow", "Week", "Results"] as const;
 const TASTER_PER_DAY = 2;
@@ -437,10 +438,10 @@ export function HomeConsole({ live, tier }: { live: LiveData; tier: Tier }) {
         </>)}
 
         <div
-          className="flex flex-col items-start gap-3 rounded-[10px] p-4 sm:flex-row sm:items-center sm:gap-4 sm:p-[15px] sm:px-[17px]"
+          className="rs-shift flex flex-col items-start gap-3 rounded-[10px] p-4 sm:flex-row sm:items-center sm:gap-4 sm:p-[15px] sm:px-[17px]"
           style={{
             border: "1px solid var(--oasis-border-strong)",
-            background: "linear-gradient(120deg,rgba(77,156,246,.1),rgba(47,207,154,.06))",
+            background: "linear-gradient(120deg,rgba(77,156,246,.14),rgba(47,207,154,.05),rgba(77,156,246,.14))",
           }}
         >
           <div className="flex-1">
@@ -459,6 +460,7 @@ export function HomeConsole({ live, tier }: { live: LiveData; tier: Tier }) {
 
       {/* Right rail */}
       <div className="flex min-w-0 flex-col gap-[14px] border-t border-[var(--oasis-border)] bg-[var(--oasis-bg-rail)] p-4 lg:min-h-0 lg:overflow-y-auto lg:border-t-0 lg:border-l">
+        <NextKickoff matches={live.matches} />
         {isResults && <HowToReadCard />}
         <MarketCard bookmakers={live.bookmakers ?? []} />
         {isResults && <LiveRecordCard live={live} />}

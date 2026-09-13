@@ -49,7 +49,7 @@ export function SiteHeader({ generatedAt }: { generatedAt: string }) {
 
         <div className="ml-auto flex items-center gap-3">
           <span className="hidden items-center gap-[6px] font-mono text-[11.5px] font-medium text-[var(--oasis-text-dim)] md:flex">
-            <span className="h-[6px] w-[6px] rounded-full bg-[var(--oasis-positive)]" />
+            <span className="rs-live-dot h-[6px] w-[6px] rounded-full bg-[var(--oasis-positive)]" />
             data {utcClock(generatedAt)} UTC
           </span>
           <Link

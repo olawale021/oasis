@@ -142,8 +142,16 @@
   .rs-cta:hover { transform: translateY(-1px); filter: brightness(1.08); }
   .rs-cta:active { transform: translateY(0); filter: none; }
   .rs-tab { transition: color 140ms ease, background-color 140ms ease, border-color 140ms ease; }
-  .rs-locked { background-size: 24px 24px; }
-  .rs-locked:hover { animation: rs-drift 1.2s linear infinite; }
+  /* Ambient: these keep running quietly after the load sequence. */
+  .rs-pulse { animation: rs-pulse 2.4s ease-in-out infinite; }
+  .rs-locked { background-size: 24px 24px; animation: rs-drift 6s linear infinite; }
+  .rs-locked:hover { animation-duration: 1.2s; }
+  .rs-shift { background-size: 200% 200%; animation: rs-shift 14s ease-in-out infinite; }
+  .rs-live-dot { position: relative; }
+  .rs-live-dot::after { content: ""; position: absolute; inset: -4px; border-radius: 50%; border: 1px solid var(--oasis-positive); animation: rs-ring 2.4s ease-out infinite; }
+  @keyframes rs-pulse { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: .45; transform: scale(.8); } }
+  @keyframes rs-ring { 0% { opacity: .8; transform: scale(.6); } 100% { opacity: 0; transform: scale(1.8); } }
+  @keyframes rs-shift { 0%, 100% { background-position: 0% 50%; } 50% { background-position: 100% 50%; } }
   @keyframes rs-fill { from { transform: scaleX(0); } to { transform: scaleX(1); } }
   @keyframes rs-rise { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: translateY(0); } }
   @keyframes rs-pop { from { opacity: 0; transform: scale(.85); } to { opacity: 1; transform: scale(1); } }
