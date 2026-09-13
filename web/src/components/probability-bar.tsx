@@ -111,8 +111,8 @@ export function TwinBar({
       </span>
       {market ? (
         <span
-          className="rs-fill flex w-full min-w-0 overflow-hidden rounded-[3px] bg-[var(--oasis-border-row)]"
-          style={{ height: line, animationDelay: `${delayMs + 160}ms` }}
+          className="rs-fill rs-mktline flex w-full min-w-0 overflow-hidden rounded-[3px] bg-[var(--oasis-border-row)]"
+          style={{ height: line, animationDelay: `${delayMs + 220}ms` }}
           title="bookmaker consensus at lock time · margin removed"
         >
           {market.map((v, i) => (

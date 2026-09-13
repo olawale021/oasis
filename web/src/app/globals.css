@@ -124,11 +124,17 @@
 /* ---- Motion: one orchestrated load sequence, then quiet. Skipped entirely
    under prefers-reduced-motion. Easing shared everywhere. ---- */
 @media (prefers-reduced-motion: no-preference) {
-  .rs-fill { transform-origin: left center; animation: rs-fill 640ms cubic-bezier(.2,.7,.2,1) both; }
-  .rs-rise { animation: rs-rise 420ms cubic-bezier(.2,.7,.2,1) both; }
+  .rs-fill { transform-origin: left center; animation: rs-fill 900ms cubic-bezier(.2,.7,.2,1) both; }
+  .rs-rise { animation: rs-rise 600ms cubic-bezier(.2,.7,.2,1) both; }
+  .rs-pop { animation: rs-pop 480ms cubic-bezier(.2,.9,.3,1.3) both; }
   .rs-row { transition: background-color 160ms ease; }
+  .rs-row:hover { background-color: var(--oasis-hover-row); }
   .rs-row .rs-mkt { transition: opacity 180ms ease; }
   .rs-row:hover .rs-mkt { opacity: 1 !important; }
+  .rs-row .rs-mktline { transform-origin: center top; transition: transform 220ms cubic-bezier(.2,.7,.2,1); }
+  .rs-row:hover .rs-mktline { transform: scaleY(1.7); }
+  .rs-row .rs-chip { transition: transform 160ms ease; }
+  .rs-row:hover .rs-chip { transform: translateX(-2px); }
   .rs-cta { transition: transform 140ms ease, filter 140ms ease; }
   .rs-cta:hover { transform: translateY(-1px); filter: brightness(1.08); }
   .rs-cta:active { transform: translateY(0); filter: none; }
@@ -136,6 +142,7 @@
   .rs-locked { background-size: 24px 24px; }
   .rs-locked:hover { animation: rs-drift 1.2s linear infinite; }
   @keyframes rs-fill { from { transform: scaleX(0); } to { transform: scaleX(1); } }
-  @keyframes rs-rise { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+  @keyframes rs-rise { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: translateY(0); } }
+  @keyframes rs-pop { from { opacity: 0; transform: scale(.85); } to { opacity: 1; transform: scale(1); } }
   @keyframes rs-drift { from { background-position: 0 0; } to { background-position: 24px 0; } }
 }

@@ -69,7 +69,7 @@ export function ResultsHero({ rows, live, bookmakerCount }: { rows: RecentResult
           <div
             key={t.k}
             className="rs-rise flex min-w-0 flex-col gap-[3px] rounded-[10px] border border-[var(--oasis-border)] bg-[var(--oasis-surface)] p-[10px] sm:gap-1 sm:p-[13px] sm:px-[14px]"
-            style={{ animationDelay: `${i * 70}ms` }}
+            style={{ animationDelay: `${i * 120}ms` }}
           >
             <span className="font-mono text-[9px] font-semibold leading-[1.3] tracking-[0.08em] text-[var(--oasis-text-dim)] sm:text-[10px] sm:tracking-[0.1em]">{t.k}</span>
             <span className="whitespace-nowrap font-mono text-[16px] font-bold leading-[1.1] sm:text-[22px]" style={{ color: t.color }}>{t.v}</span>
@@ -103,7 +103,7 @@ export function SignInStrip({ tier }: { tier: Tier }) {
   );
 }
 
-function Verdict({ r, compact = false }: { r: RecentResult; compact?: boolean }) {
+function Verdict({ r, compact = false, delayMs = 0 }: { r: RecentResult; compact?: boolean; delayMs?: number }) {
   const l = r.locked!;
   if (l.correct === null || l.outcome == null) {
     return <span className="font-mono text-[11.5px] text-[var(--oasis-text-dim)]">awaiting settlement</span>;
@@ -124,8 +124,13 @@ function Verdict({ r, compact = false }: { r: RecentResult; compact?: boolean })
       {mk != null && <span className="text-[var(--oasis-text-muted)]"> · market {mk}%</span>}
     </span>
   );
-  if (compact) return <>{nums}{chip}</>;
-  return <span className="rs-rise flex flex-col items-end gap-[6px]" style={{ animationDelay: "520ms" }}>{nums}{chip}</span>;
+  if (compact) return <>{nums}<span className="rs-pop rs-chip" style={{ animationDelay: `${delayMs + 700}ms` }}>{chip}</span></>;
+  return (
+    <span className="flex flex-col items-end gap-[6px]">
+      <span className="rs-rise" style={{ animationDelay: `${delayMs + 500}ms` }}>{nums}</span>
+      <span className="rs-pop rs-chip" style={{ animationDelay: `${delayMs + 700}ms` }}>{chip}</span>
+    </span>
+  );
 }
 
 function Meta({ r }: { r: RecentResult }) {
@@ -189,13 +194,13 @@ export function ResultsList({ rows, filter }: { rows: RecentResult[]; filter: Re
               <span className="flex min-w-0 flex-1 items-center gap-[14px] pr-[18px]">
                 <TeamSide id={r.homeId} name={r.home} side="home" size={24} className="w-[160px] text-[15px] font-bold tracking-[-0.01em]" />
                 <span className="flex min-w-0 flex-1 flex-col items-center gap-[5px]">
-                  <TwinBar model={[l.h, l.d, l.a]} market={market} outcome={l.outcome ?? null} delayMs={Math.min(i, 24) * 60} className="w-full" />
+                  <TwinBar model={[l.h, l.d, l.a]} market={market} outcome={l.outcome ?? null} delayMs={Math.min(i, 24) * 90} className="w-full" />
                   <Meta r={r} />
                 </span>
                 <TeamSide id={r.awayId} name={r.away} side="away" size={24} className="w-[160px] text-[15px] font-bold tracking-[-0.01em]" />
               </span>
               <span className="w-[80px] text-right font-mono text-[16.5px] font-bold">{r.score}</span>
-              <span className="flex w-[170px] justify-end"><Verdict r={r} /></span>
+              <span className="flex w-[170px] justify-end"><Verdict r={r} delayMs={Math.min(i, 24) * 90} /></span>
             </div>
             {/* Phone row */}
             <div className="rs-row flex flex-col gap-2 border-b border-[var(--oasis-border-row)] py-3 md:hidden">
@@ -204,9 +209,9 @@ export function ResultsList({ rows, filter }: { rows: RecentResult[]; filter: Re
                 <span className="shrink-0 font-mono text-[15px] font-bold">{r.score}</span>
                 <TeamSide id={r.awayId} name={r.away} side="home" size={20} className="min-w-0 flex-1 justify-end text-[14px] font-bold tracking-[-0.01em]" />
               </span>
-              <TwinBar model={[l.h, l.d, l.a]} market={market} outcome={l.outcome ?? null} height={22} line={6} delayMs={Math.min(i, 24) * 60} className="w-full" />
+              <TwinBar model={[l.h, l.d, l.a]} market={market} outcome={l.outcome ?? null} height={22} line={6} delayMs={Math.min(i, 24) * 90} className="w-full" />
               <Meta r={r} />
-              <span className="flex items-center justify-between gap-2"><Verdict r={r} compact /></span>
+              <span className="flex items-center justify-between gap-2"><Verdict r={r} compact delayMs={Math.min(i, 24) * 90} /></span>
             </div>
           </div>
         );
