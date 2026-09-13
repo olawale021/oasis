@@ -150,6 +150,31 @@ function Verdict({ r, compact = false, delayMs = 0 }: { r: RecentResult; compact
   );
 }
 
+const PICK_LABEL = ["home win", "draw", "away win"];
+
+/** Hit or miss on the top pick, in words: "✓ picked home win". */
+function PickMark({ r, align = "end" }: { r: RecentResult; align?: "end" | "start" }) {
+  const l = r.locked!;
+  if (l.correct === null) return null;
+  const pick = [l.h, l.d, l.a].indexOf(Math.max(l.h, l.d, l.a));
+  const ok = l.correct === true;
+  return (
+    <span
+      className={`flex items-center gap-[5px] whitespace-nowrap font-mono text-[10.5px] font-bold tracking-[0.04em] ${align === "end" ? "justify-end" : ""}`}
+      style={{ color: ok ? "var(--oasis-positive)" : "var(--oasis-away)" }}
+      title={ok ? "our top pick was right" : "our top pick was wrong"}
+    >
+      <span
+        className="flex h-[15px] w-[15px] items-center justify-center rounded-full text-[10px] leading-none"
+        style={{ background: ok ? "var(--oasis-positive)" : "var(--oasis-away)", color: ok ? "var(--oasis-home-ink)" : "#1a1206" }}
+      >
+        {ok ? "✓" : "✗"}
+      </span>
+      {ok ? "picked" : "picked"} {PICK_LABEL[pick]}
+    </span>
+  );
+}
+
 function Meta({ r }: { r: RecentResult }) {
   const o = r.locked?.outcome;
   return (
@@ -158,7 +183,7 @@ function Meta({ r }: { r: RecentResult }) {
       {o != null && (
         <>
           {" · "}
-          <span className="font-bold" style={{ color: OUTCOME_COLOR[o] }}>result: {OUTCOME_LABEL[o]}</span>
+          <span className="font-bold" style={{ color: OUTCOME_COLOR[o] }}>{OUTCOME_LABEL[o]}</span>
         </>
       )}
     </span>
@@ -205,7 +230,7 @@ export function ResultsList({ rows, filter }: { rows: RecentResult[]; filter: Re
           </span>
           <span className="hidden md:block md:w-[160px]">AWAY</span>
         </span>
-        <span className="hidden w-[80px] text-right md:block">FINAL</span>
+        <span className="hidden w-[128px] text-right md:block">FINAL · OUR PICK</span>
         <span className="hidden w-[170px] text-right md:block">ON THE RESULT</span>
       </div>
 
@@ -239,7 +264,10 @@ export function ResultsList({ rows, filter }: { rows: RecentResult[]; filter: Re
                 </span>
                 <TeamSide id={r.awayId} name={r.away} side="away" size={24} className="w-[160px] text-[15px] font-bold tracking-[-0.01em]" />
               </span>
-              <span className="w-[80px] text-right font-mono text-[16.5px] font-bold">{r.score}</span>
+              <span className="flex w-[128px] flex-col items-end gap-[4px]">
+                <span className="font-mono text-[16.5px] font-bold leading-none">{r.score}</span>
+                <PickMark r={r} />
+              </span>
               <span className="flex w-[170px] justify-end"><Verdict r={r} delayMs={Math.min(i, 24) * 90} /></span>
             </div>
             {/* Phone row */}
@@ -250,7 +278,7 @@ export function ResultsList({ rows, filter }: { rows: RecentResult[]; filter: Re
                 <TeamSide id={r.awayId} name={r.away} side="home" size={20} className="min-w-0 flex-1 justify-end text-[14px] font-bold tracking-[-0.01em]" />
               </span>
               <TwinBar model={[l.h, l.d, l.a]} market={market} outcome={l.outcome ?? null} height={22} line={6} delayMs={Math.min(i, 24) * 90} className="w-full" />
-              <Meta r={r} />
+              <span className="flex items-center justify-between gap-2"><Meta r={r} /><PickMark r={r} /></span>
               <span className="flex items-center justify-between gap-2"><Verdict r={r} compact delayMs={Math.min(i, 24) * 90} /></span>
             </div>
           </div>
