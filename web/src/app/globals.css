@@ -121,8 +121,11 @@
   }
 }
 
-/* ---- Motion: one orchestrated load sequence, then quiet. Skipped entirely
-   under prefers-reduced-motion. Easing shared everywhere. ---- */
+/* ---- Motion: one orchestrated load sequence, then quiet. Under
+   prefers-reduced-motion everything collapses to an opacity-only fade
+   (no movement, no scaling). Easing shared everywhere. ---- */
+.rs-fill, .rs-rise, .rs-pop { animation: rs-fade 500ms ease both; }
+@keyframes rs-fade { from { opacity: 0; } to { opacity: 1; } }
 @media (prefers-reduced-motion: no-preference) {
   .rs-fill { transform-origin: left center; animation: rs-fill 900ms cubic-bezier(.2,.7,.2,1) both; }
   .rs-rise { animation: rs-rise 600ms cubic-bezier(.2,.7,.2,1) both; }
