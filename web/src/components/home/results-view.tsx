@@ -3,7 +3,7 @@
 import { TwinBar } from "@/components/probability-bar";
 import { TeamSide } from "@/components/team-logo";
 import { UnlockCta } from "@/components/unlock-cta";
-import { LEAGUE_NAMES, utcDayLabel } from "@/lib/data";
+import { LEAGUE_CODES, LEAGUE_NAMES, utcDayLabel } from "@/lib/data";
 import type { LiveData } from "@/lib/data";
 import type { RecentResult } from "@/lib/types";
 import type { Tier } from "@/lib/viewer";
@@ -154,7 +154,7 @@ function Meta({ r }: { r: RecentResult }) {
   const o = r.locked?.outcome;
   return (
     <span className="whitespace-nowrap font-mono text-[10.5px] font-medium text-[var(--oasis-text-muted)] sm:text-[11.5px]">
-      {LEAGUE_NAMES[r.lg]} · {r.ko} UTC
+      {r.ko} UTC
       {o != null && (
         <>
           {" · "}
@@ -166,15 +166,30 @@ function Meta({ r }: { r: RecentResult }) {
 }
 
 export function ResultsList({ rows, filter }: { rows: RecentResult[]; filter: ResultsFilter }) {
-  const shown = rows.filter((r) => {
-    const l = r.locked!;
-    if (filter === "closer") return l.closer === true;
-    if (filter === "market") return l.closer === false;
-    if (filter === "hit") return l.correct === true;
-    return true;
-  });
+  // Newest day first; inside a day, leagues in the site's fixed order, then
+  // latest kickoff first. Rows are grouped under a day header and a league
+  // sub-header so a Saturday with five leagues reads as five short lists.
+  const leagueRank = (lg: string) => LEAGUE_CODES.indexOf(lg as (typeof LEAGUE_CODES)[number]);
+  const shown = rows
+    .filter((r) => {
+      const l = r.locked!;
+      if (filter === "closer") return l.closer === true;
+      if (filter === "market") return l.closer === false;
+      if (filter === "hit") return l.correct === true;
+      return true;
+    })
+    .sort((a, b) =>
+      b.kickoffUtc.slice(0, 10).localeCompare(a.kickoffUtc.slice(0, 10)) ||
+      leagueRank(a.lg) - leagueRank(b.lg) ||
+      b.kickoffUtc.localeCompare(a.kickoffUtc),
+    );
   const dayCount: Record<string, number> = {};
-  for (const r of shown) dayCount[r.kickoffUtc.slice(0, 10)] = (dayCount[r.kickoffUtc.slice(0, 10)] ?? 0) + 1;
+  const groupCount: Record<string, number> = {};
+  for (const r of shown) {
+    const day = r.kickoffUtc.slice(0, 10);
+    dayCount[day] = (dayCount[day] ?? 0) + 1;
+    groupCount[`${day}|${r.lg}`] = (groupCount[`${day}|${r.lg}`] ?? 0) + 1;
+  }
 
   return (
     <>
@@ -198,12 +213,20 @@ export function ResultsList({ rows, filter }: { rows: RecentResult[]; filter: Re
         const l = r.locked!;
         const day = r.kickoffUtc.slice(0, 10);
         const showDay = i === 0 || shown[i - 1].kickoffUtc.slice(0, 10) !== day;
+        const showLeague = showDay || shown[i - 1].lg !== r.lg;
         const market = l.mh != null && l.md != null && l.ma != null ? ([l.mh, l.md, l.ma] as [number, number, number]) : null;
         return (
           <div key={r.id}>
             {showDay && (
-              <div className="pb-[6px] pt-3 font-mono text-[12px] font-semibold tracking-[0.08em] text-[var(--oasis-text-dim)] sm:text-[12.5px]">
+              <div className="pb-[2px] pt-4 font-mono text-[12px] font-semibold tracking-[0.08em] text-[var(--oasis-text-dim)] sm:text-[12.5px]">
                 {utcDayLabel(r.kickoffUtc).toUpperCase()} · <span className="text-[var(--oasis-text-muted)]">{dayCount[day]} {dayCount[day] === 1 ? "result" : "results"}</span>
+              </div>
+            )}
+            {showLeague && (
+              <div className="flex items-center gap-2 pb-[2px] pt-[10px]">
+                <span className="text-[12.5px] font-bold tracking-[-0.01em] text-[var(--oasis-text-soft)]">{LEAGUE_NAMES[r.lg]}</span>
+                <span className="font-mono text-[10.5px] font-medium text-[var(--oasis-text-dim)]">{groupCount[`${day}|${r.lg}`]}</span>
+                <span className="h-px flex-1 bg-[var(--oasis-border)]" />
               </div>
             )}
             {/* Desktop row */}
