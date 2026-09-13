@@ -15,17 +15,19 @@ function fmt(ms: number): string {
   return `in ${m}m ${sec.toString().padStart(2, "0")}s`;
 }
 
-/** Live countdown to the next kickoff in the horizon. Ticks every second;
- * the seconds only show inside the final hour so it reads calm until it
- * matters. Renders nothing before hydration so SSR and client agree. */
+/** Live countdown to the next kickoff in the horizon. Server-renders with
+ * the request-time value so the card is there before hydration, then ticks
+ * every second on the client; the seconds only show inside the final hour
+ * so it reads calm until it matters. The countdown text carries
+ * suppressHydrationWarning because a minute can roll over between render
+ * and hydration. */
 export function NextKickoff({ matches }: { matches: MatchRecord[] }) {
-  const [now, setNow] = useState<number | null>(null);
+  const [now, setNow] = useState<number>(() => Date.now());
   useEffect(() => {
     setNow(Date.now());
     const t = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(t);
   }, []);
-  if (now === null) return null;
   const next = matches
     .filter((m) => Date.parse(m.kickoffUtc) > now - 5 * 60 * 1000)
     .sort((a, b) => a.kickoffUtc.localeCompare(b.kickoffUtc))[0];
@@ -49,7 +51,7 @@ export function NextKickoff({ matches }: { matches: MatchRecord[] }) {
         <TeamLogo id={next.awayId} size={18} />
         <span className="truncate">{next.away}</span>
       </span>
-      <span className="font-mono text-[18px] font-bold leading-none tabular-nums" style={{ color: ms < 3600e3 ? "var(--oasis-positive)" : "var(--oasis-text)" }}>
+      <span suppressHydrationWarning className="font-mono text-[18px] font-bold leading-none tabular-nums" style={{ color: ms < 3600e3 ? "var(--oasis-positive)" : "var(--oasis-text)" }}>
         {fmt(ms)}
       </span>
       <span className="font-mono text-[10.5px] text-[var(--oasis-text-muted)]">

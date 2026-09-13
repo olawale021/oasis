@@ -106,6 +106,7 @@ export function HomeConsole({ live, tier }: { live: LiveData; tier: Tier }) {
     <div className="grid w-full grid-cols-1 lg:h-full lg:grid-cols-[212px_1fr_268px] lg:overflow-hidden">
       {/* Left rail */}
       <div className="flex min-w-0 flex-col gap-[14px] border-b border-[var(--oasis-border)] bg-[var(--oasis-bg-rail)] p-3 lg:min-h-0 lg:gap-[22px] lg:overflow-y-auto lg:border-b-0 lg:border-r lg:p-4">
+        <NextKickoff matches={live.matches} />
         <div className="flex flex-col gap-2">
           <div className="font-mono text-[10px] font-semibold tracking-[0.1em] text-[var(--oasis-text-dim)]">
             LEAGUES
@@ -460,7 +461,6 @@ export function HomeConsole({ live, tier }: { live: LiveData; tier: Tier }) {
 
       {/* Right rail */}
       <div className="flex min-w-0 flex-col gap-[14px] border-t border-[var(--oasis-border)] bg-[var(--oasis-bg-rail)] p-4 lg:min-h-0 lg:overflow-y-auto lg:border-t-0 lg:border-l">
-        <NextKickoff matches={live.matches} />
         {isResults && <HowToReadCard />}
         <MarketCard bookmakers={live.bookmakers ?? []} />
         {isResults && <LiveRecordCard live={live} />}
