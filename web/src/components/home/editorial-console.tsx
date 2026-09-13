@@ -1,5 +1,7 @@
 "use client";
 
+import { Logo } from "@/components/logo";
+
 import Link from "next/link";
 import { LEAGUE_NAMES, utcClock } from "@/lib/data";
 import type { LiveData } from "@/lib/data";
@@ -19,11 +21,7 @@ export function EditorialConsole({ live }: { live: LiveData }) {
     <div className="w-full">
       <div className="flex items-center gap-[22px] border-b border-[var(--oasis-border)] bg-[var(--oasis-surface)] px-5 py-[14px]">
         <div className="flex items-center gap-[9px]">
-          <span
-            className="block h-5 w-5 rounded-[6px]"
-            style={{ background: "linear-gradient(140deg,#4d9cf6,#2fcf9a)" }}
-          />
-          <span className="text-[15px] font-extrabold leading-none">RealscoreAI</span>
+          <Logo size={17} />
         </div>
         <div className="flex gap-[18px] text-[13px] font-semibold">
           <span>Today</span>
