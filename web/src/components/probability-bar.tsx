@@ -6,12 +6,14 @@ interface ProbabilityBarProps {
   /** Render the percentage inside each segment (when wide enough to fit). */
   labeled?: boolean;
   className?: string;
+  /** Load-in fill animation delay; omit to render static. */
+  delayMs?: number;
 }
 
 /** Stacked home/draw/away probability gauge. Give it a width via className
  * (e.g. flex-1 or w-full) — the inner segments are percentage-sized, so the
  * bar has no intrinsic width of its own. */
-export function ProbabilityBar({ home, draw, away, height = 9, labeled = false, className = "" }: ProbabilityBarProps) {
+export function ProbabilityBar({ home, draw, away, height = 9, labeled = false, className = "", delayMs }: ProbabilityBarProps) {
   const segment = (value: number, background: string, color: string, label: string) => (
     <span
       className="flex items-center justify-center overflow-hidden whitespace-nowrap font-mono text-[11px] font-bold sm:text-[12.5px]"
@@ -23,7 +25,10 @@ export function ProbabilityBar({ home, draw, away, height = 9, labeled = false, 
   );
 
   return (
-    <span className={`flex min-w-0 overflow-hidden rounded-[5px] bg-[var(--oasis-border-row)] ${className}`} style={{ height }}>
+    <span
+      className={`${delayMs != null ? "rs-fill " : ""}flex min-w-0 overflow-hidden rounded-[5px] bg-[var(--oasis-border-row)] ${className}`}
+      style={{ height, animationDelay: delayMs != null ? `${delayMs}ms` : undefined }}
+    >
       {segment(home, "var(--oasis-home)", "var(--oasis-home-ink)", "home win")}
       {segment(draw, "var(--oasis-draw)", "var(--oasis-text)", "draw")}
       {segment(away, "var(--oasis-away)", "#1a1206", "away win")}
@@ -53,15 +58,16 @@ export function ProbabilityLegend() {
 
 /** Placeholder rendered in place of a gauge the viewer is not entitled to
  * see. Same footprint as ProbabilityBar so rows keep their layout. */
-export function LockedBar({ height = 9, className = "", label = "locked" }: { height?: number; className?: string; label?: string }) {
+export function LockedBar({ height = 9, className = "", label = "locked", delayMs }: { height?: number; className?: string; label?: string; delayMs?: number }) {
   return (
     <span
-      className={`rs-locked flex min-w-0 items-center justify-center overflow-hidden rounded-[5px] font-mono text-[10.5px] font-semibold tracking-[0.08em] text-[var(--oasis-text-dim)] ${className}`}
+      className={`rs-locked ${delayMs != null ? "rs-rise " : ""}flex min-w-0 items-center justify-center overflow-hidden rounded-[5px] font-mono text-[10.5px] font-semibold tracking-[0.08em] text-[var(--oasis-text-dim)] ${className}`}
       style={{
         height,
         background:
           "repeating-linear-gradient(135deg, var(--oasis-border-row) 0 6px, var(--oasis-surface-raised) 6px 12px)",
         border: "1px solid var(--oasis-border)",
+        animationDelay: delayMs != null ? `${delayMs}ms` : undefined,
       }}
       title="Prediction locked for your access level"
     >

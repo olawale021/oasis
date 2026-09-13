@@ -307,11 +307,7 @@ export function HomeConsole({ live, tier }: { live: LiveData; tier: Tier }) {
                   {utcDayLabel(m.kickoffUtc).toUpperCase()}
                 </div>
               )}
-              <div
-                className="cursor-pointer border-b border-[var(--oasis-border-row)] transition-colors"
-                onMouseEnter={(e) => (e.currentTarget.style.background = "var(--oasis-hover-row)")}
-                onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
-              >
+              <div className="rs-row cursor-pointer border-b border-[var(--oasis-border-row)]">
                 <button
                   type="button"
                   onClick={() => setExpanded(isOpen ? null : m.id)}
@@ -324,9 +320,9 @@ export function HomeConsole({ live, tier }: { live: LiveData; tier: Tier }) {
                     />
                     <span className="flex min-w-0 flex-1 flex-col gap-[4px]">
                       {m.gated ? (
-                        <LockedBar height={26} className="w-full" label={tier === "anon" ? "sign in to unlock" : "lifetime access"} />
+                        <LockedBar height={26} className="w-full" label={tier === "anon" ? "sign in to unlock" : "lifetime access"} delayMs={Math.min(idx, 24) * 70} />
                       ) : (
-                        <ProbabilityBar home={m.h} draw={m.d} away={m.a} height={26} labeled className="w-full" />
+                        <ProbabilityBar home={m.h} draw={m.d} away={m.a} height={26} labeled className="w-full" delayMs={Math.min(idx, 24) * 90} />
                       )}
                       <span
                         className="w-full text-center font-mono text-[10.5px] font-medium leading-[1.35] md:text-[11.5px]"
@@ -342,7 +338,8 @@ export function HomeConsole({ live, tier }: { live: LiveData; tier: Tier }) {
                   </span>
                   <span className="flex w-full items-center justify-between md:contents">
                     <span
-                      className="flex flex-col md:w-[100px] md:items-end"
+                      className="rs-rise flex flex-col md:w-[100px] md:items-end"
+                      style={{ animationDelay: `${Math.min(idx, 24) * 90 + 400}ms` }}
                       title={m.gated ? "locked" : `most likely ${m.pick === "draw" ? "scoreline" : `${m.pick}-win scoreline`} (overall mode ${m.score}, ${m.matrix.peakPct}%)`}
                     >
                       <span className="font-mono text-[14px] font-medium md:text-[15.5px]">{m.gated ? "—" : m.condScore}</span>
@@ -462,13 +459,9 @@ export function HomeConsole({ live, tier }: { live: LiveData; tier: Tier }) {
 
       {/* Right rail */}
       <div className="flex min-w-0 flex-col gap-[14px] border-t border-[var(--oasis-border)] bg-[var(--oasis-bg-rail)] p-4 lg:border-t-0 lg:border-l">
-        {isResults && (
-          <>
-            <HowToReadCard />
-            <MarketCard bookmakers={live.bookmakers ?? []} />
-            <LiveRecordCard live={live} />
-          </>
-        )}
+        {isResults && <HowToReadCard />}
+        <MarketCard bookmakers={live.bookmakers ?? []} />
+        {isResults && <LiveRecordCard live={live} />}
         <div className="flex flex-col gap-[9px] rounded-[10px] border border-[var(--oasis-border)] bg-[var(--oasis-surface)] p-[13px]">
           <div className="font-mono text-[10px] font-semibold tracking-[0.1em] text-[var(--oasis-text-dim)]">
             2025/26 BACKTEST · {live.headline.n_test} MATCHES
