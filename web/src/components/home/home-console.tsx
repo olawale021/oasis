@@ -137,6 +137,7 @@ export function HomeConsole({ live, tier }: { live: LiveData; tier: Tier }) {
             })}
           </div>
         </div>
+        <div className="lg:hidden"><NextKickoff matches={live.matches} compact /></div>
 
         {isResults && (
           <div className="hidden flex-col gap-[9px] lg:flex">
@@ -511,7 +512,7 @@ export function HomeConsole({ live, tier }: { live: LiveData; tier: Tier }) {
 
       {/* Right rail */}
       <div className="flex min-w-0 flex-col gap-[14px] border-t border-[var(--oasis-border)] bg-[var(--oasis-bg-rail)] p-4 lg:min-h-0 lg:overflow-y-auto lg:border-t-0 lg:border-l">
-        <NextKickoff matches={live.matches} />
+        <div className="hidden lg:block"><NextKickoff matches={live.matches} /></div>
         {isResults && <HowToReadCard />}
         <MarketCard bookmakers={live.bookmakers ?? []} />
         {isResults && <LiveRecordCard live={live} />}

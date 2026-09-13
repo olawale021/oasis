@@ -21,7 +21,7 @@ function fmt(ms: number): string {
  * so it reads calm until it matters. The countdown text carries
  * suppressHydrationWarning because a minute can roll over between render
  * and hydration. */
-export function NextKickoff({ matches }: { matches: MatchRecord[] }) {
+export function NextKickoff({ matches, compact = false }: { matches: MatchRecord[]; compact?: boolean }) {
   const [now, setNow] = useState<number>(() => Date.now());
   useEffect(() => {
     const t = setInterval(() => setNow(Date.now()), 1000);
@@ -34,6 +34,29 @@ export function NextKickoff({ matches }: { matches: MatchRecord[] }) {
   const ms = Date.parse(next.kickoffUtc) - now;
   const lockBy = new Date(Date.parse(next.kickoffUtc) - 70 * 60 * 1000);
   const lockLabel = `${lockBy.getUTCHours().toString().padStart(2, "0")}:${lockBy.getUTCMinutes().toString().padStart(2, "0")}`;
+  if (compact) {
+    // One-line strip for phones: sits under the league chips so the next
+    // fixture is visible without scrolling to the rail.
+    return (
+      <Link
+        href={`/match/${next.id}`}
+        className="flex items-center gap-[8px] rounded-[9px] border border-[var(--oasis-border)] bg-[var(--oasis-surface)] px-[10px] py-[8px]"
+      >
+        <span className="rs-pulse block h-[6px] w-[6px] shrink-0 rounded-full bg-[var(--oasis-home)]" />
+        <span className="shrink-0 font-mono text-[9.5px] font-semibold tracking-[0.08em] text-[var(--oasis-text-dim)]">NEXT</span>
+        <span className="flex min-w-0 flex-1 items-center gap-[5px] text-[12.5px] font-bold">
+          <TeamLogo id={next.homeId} size={16} />
+          <span className="truncate">{next.home}</span>
+          <span className="text-[var(--oasis-text-dim)]">v</span>
+          <TeamLogo id={next.awayId} size={16} />
+          <span className="truncate">{next.away}</span>
+        </span>
+        <span suppressHydrationWarning className="shrink-0 font-mono text-[13px] font-bold tabular-nums" style={{ color: ms < 3600e3 ? "var(--oasis-positive)" : "var(--oasis-text)" }}>
+          {fmt(ms)}
+        </span>
+      </Link>
+    );
+  }
   return (
     <Link
       href={`/match/${next.id}`}
