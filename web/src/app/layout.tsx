@@ -4,6 +4,7 @@ import { ClerkProvider } from "@clerk/nextjs";
 import { shadcn } from "@clerk/ui/themes";
 import { SiteHeader } from "@/components/site-header";
 import { getLive } from "@/lib/live-server";
+import { getViewer } from "@/lib/viewer";
 import "./globals.css";
 
 const instrumentSans = Instrument_Sans({
@@ -25,7 +26,7 @@ export const metadata: Metadata = {
 };
 
 export default async function RootLayout({ children }: LayoutProps<"/">) {
-  const live = await getLive();
+  const [live, viewer] = await Promise.all([getLive(), getViewer()]);
   return (
     <html
       lang="en"
@@ -45,7 +46,7 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
           (method, performance) without the window itself growing. */}
       <body className="flex h-dvh flex-col overflow-hidden bg-[var(--oasis-bg)] text-[var(--oasis-text)]">
         <ClerkProvider appearance={{ theme: shadcn }}>
-          <SiteHeader generatedAt={live.generated_at} />
+          <SiteHeader generatedAt={live.generated_at} tier={viewer.tier} />
           <main className="min-h-0 flex-1 overflow-y-auto">{children}</main>
         </ClerkProvider>
       </body>

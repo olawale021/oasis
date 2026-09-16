@@ -5,6 +5,7 @@ import { TwinBar } from "@/components/probability-bar";
 import { TeamSide } from "@/components/team-logo";
 import { UnlockCta } from "@/components/unlock-cta";
 import { LEAGUE_CODES, LEAGUE_NAMES, utcDayLabel } from "@/lib/data";
+import { cn } from "@/lib/utils";
 import type { LiveData } from "@/lib/data";
 import type { LeagueCode } from "@/lib/types";
 import type { RecentResult } from "@/lib/types";
@@ -169,13 +170,39 @@ export function ResultsHero({ rows, bookmakerCount, versions }: { rows: RecentRe
 }
 
 export function SignInStrip({ tier }: { tier: Tier }) {
+  /** Anonymous visitors have no day tabs at all (the upcoming board is
+   * hidden for them), so they need telling both what they are looking at
+   * and that an upcoming board exists. Free viewers can already see the
+   * tabs, so for them this is only a nudge toward the rest. */
+  const anon = tier === "anon";
   return (
-    <div className="flex flex-col items-start gap-3 rounded-[9px] border border-[var(--oasis-border)] bg-[var(--oasis-surface)] p-3 sm:flex-row sm:items-center sm:gap-4 sm:px-[14px]">
+    <div
+      className={cn(
+        "flex flex-col items-start gap-3 rounded-[9px] border bg-[var(--oasis-surface)] p-3 sm:flex-row sm:items-center sm:gap-4 sm:px-[14px]",
+        anon ? "border-[var(--oasis-home)]" : "border-[var(--oasis-border)]",
+      )}
+    >
+      {anon && (
+        <span className="whitespace-nowrap rounded-full border border-[var(--oasis-home)] bg-[var(--oasis-home-tint)] px-[9px] py-[3px] font-mono text-[10px] font-bold tracking-[0.06em] text-[var(--oasis-home)]">
+          PAST RESULTS
+        </span>
+      )}
       <div className="flex-1 text-[12.5px] leading-[1.6] text-[var(--oasis-text-muted)]">
-        <span className="font-bold text-[var(--oasis-text)]">Upcoming matches are under Today, Tomorrow and Week.</span>{" "}
-        {tier === "anon"
-          ? `A free account unlocks the ${TASTER_PER_DAY} highest-confidence forecasts each day.`
-          : "Lifetime access unlocks every upcoming forecast."}
+        {anon ? (
+          <>
+            <span className="font-bold text-[var(--oasis-text)]">
+              You&rsquo;re looking at matches that have already been played
+            </span>{" "}
+            — predictions locked before kickoff, then scored against the result. Predictions for{" "}
+            <span className="font-bold text-[var(--oasis-text)]">upcoming</span> matches need an account: a free one
+            unlocks the {TASTER_PER_DAY} highest-confidence forecasts every day.
+          </>
+        ) : (
+          <>
+            <span className="font-bold text-[var(--oasis-text)]">Upcoming matches are under Today, Tomorrow and Week.</span>{" "}
+            Lifetime access unlocks every upcoming forecast.
+          </>
+        )}
       </div>
       <UnlockCta tier={tier} />
     </div>

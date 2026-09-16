@@ -325,7 +325,7 @@ export function HomeConsole({ live, tier }: { live: LiveData; tier: Tier }) {
               </>
             )}
         </div>
-        {isResults && tier === "free" && <SignInStrip tier={tier} />}
+        {isResults && tier !== "premium" && <SignInStrip tier={tier} />}
         {isResults && <ResultsList rows={resultRows} filter={resultFilter} />}
 
         {dayTab !== "Results" && (<>

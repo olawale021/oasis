@@ -8,6 +8,7 @@ import { utcClock } from "@/lib/data";
 import { cn } from "@/lib/utils";
 import { Logo } from "@/components/logo";
 import { ThemeToggle } from "@/components/theme-toggle";
+import type { Tier } from "@/lib/viewer";
 
 const NAV_LINKS = [
   { label: "Today", href: "/", match: (p: string) => p === "/" },
@@ -32,9 +33,13 @@ const MENU = [
   { label: "Pricing", href: "/pricing", hint: "founding-member lifetime access", icon: ICON.pricing, match: (p: string) => p.startsWith("/pricing") },
 ];
 
-export function SiteHeader({ generatedAt }: { generatedAt: string }) {
+export function SiteHeader({ generatedAt, tier }: { generatedAt: string; tier: Tier }) {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
+
+  /** The upsell is noise for anyone who cannot act on it: premium viewers
+   * have already bought, and /admin is an operator console, not a shop. */
+  const showUpsell = tier !== "premium" && !(pathname ?? "").startsWith("/admin");
 
   return (
     <header className="relative z-40 border-b border-[var(--oasis-border)] bg-[var(--oasis-surface)]">
@@ -70,13 +75,15 @@ export function SiteHeader({ generatedAt }: { generatedAt: string }) {
             <span className="rs-live-dot h-[6px] w-[6px] rounded-full bg-[var(--oasis-positive)]" />
             data {utcClock(generatedAt)} UTC
           </span>
-          <Link
-            href="/pricing"
-            className="rs-cta whitespace-nowrap rounded-[7px] bg-[var(--oasis-home)] px-[11px] py-[6px] text-[11.5px] font-bold text-[var(--oasis-home-ink)] sm:px-[13px] sm:py-[7px] sm:text-[12.5px]"
-          >
-            <span className="sm:hidden">Lifetime access</span>
-            <span className="hidden sm:inline">Get lifetime access</span>
-          </Link>
+          {showUpsell && (
+            <Link
+              href="/pricing"
+              className="rs-cta whitespace-nowrap rounded-[7px] bg-[var(--oasis-home)] px-[11px] py-[6px] text-[11.5px] font-bold text-[var(--oasis-home-ink)] sm:px-[13px] sm:py-[7px] sm:text-[12.5px]"
+            >
+              <span className="sm:hidden">Lifetime access</span>
+              <span className="hidden sm:inline">Get lifetime access</span>
+            </Link>
+          )}
           <Show when="signed-out">
             <SignInButton mode="modal">
               <button
@@ -119,7 +126,7 @@ export function SiteHeader({ generatedAt }: { generatedAt: string }) {
           />
           <nav className="rs-sheet absolute inset-x-0 top-full z-40 border-b border-[var(--oasis-border)] bg-[var(--oasis-surface)] shadow-[0_24px_48px_rgba(0,0,0,.55)]">
             <div className="flex flex-col px-4 pt-2">
-              {MENU.map((item, i) => {
+              {MENU.filter((item) => showUpsell || item.href !== "/pricing").map((item, i) => {
                 const active = item.match(pathname ?? "");
                 return (
                   <Link
@@ -163,9 +170,11 @@ export function SiteHeader({ generatedAt }: { generatedAt: string }) {
                   Account
                 </Link>
               </Show>
-              <Link href="/pricing" onClick={() => setOpen(false)} className="rs-cta flex-1 rounded-[8px] bg-[var(--oasis-home)] py-[10px] text-center text-[13px] font-bold text-[var(--oasis-home-ink)]">
-                Get lifetime access
-              </Link>
+              {showUpsell && (
+                <Link href="/pricing" onClick={() => setOpen(false)} className="rs-cta flex-1 rounded-[8px] bg-[var(--oasis-home)] py-[10px] text-center text-[13px] font-bold text-[var(--oasis-home-ink)]">
+                  Get lifetime access
+                </Link>
+              )}
             </div>
             <div className="flex items-center justify-between gap-3 px-4 pb-3 font-mono text-[10.5px] font-medium text-[var(--oasis-text-dim)]">
               <span className="flex items-center gap-[6px]"><span className="rs-live-dot h-[6px] w-[6px] rounded-full bg-[var(--oasis-positive)]" />data {utcClock(generatedAt)} UTC</span>
