@@ -535,7 +535,11 @@ export function HomeConsole({ live, tier }: { live: LiveData; tier: Tier }) {
         <div className="hidden lg:block"><NextKickoff matches={live.matches} /></div>
         {isResults && <HowToReadCard />}
         <MarketCard bookmakers={live.bookmakers ?? []} />
-        {isResults && <LiveRecordCard live={live} />}
+        {/* The live record is the honest track record, so it shows on every
+            tab once anything has settled — not just Results, where it used to
+            hide behind the day filter and left the backtest card looking like
+            the only record we had. */}
+        {live.live_record.settled > 0 && <LiveRecordCard live={live} />}
         <div className="flex flex-col gap-[9px] rounded-[10px] border border-[var(--oasis-border)] bg-[var(--oasis-surface)] p-[13px]">
           <div className="font-mono text-[10px] font-semibold tracking-[0.1em] text-[var(--oasis-text-dim)]">
             2025/26 BACKTEST · {live.headline.n_test} MATCHES
