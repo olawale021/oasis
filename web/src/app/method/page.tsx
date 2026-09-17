@@ -8,11 +8,14 @@ export const metadata: Metadata = {
   description: "How the RealscoresAI forecasts are built, tested and published.",
 };
 
+/** One numbered step: the label sits in a narrow left column so the eye can
+ * scan the sequence, the prose takes the rest. Rules, not boxes, divide
+ * steps. */
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <section className="rounded-[10px] border border-[var(--oasis-border)] bg-[var(--oasis-surface)] p-4 sm:p-5">
-      <h2 className="mb-3 font-mono text-[10.5px] font-semibold uppercase tracking-[0.1em] text-[var(--oasis-text-dim)]">{title}</h2>
-      <div className="flex flex-col gap-3 text-[13.5px] leading-[1.7] text-[var(--oasis-text-soft)]">{children}</div>
+    <section className="grid gap-3 border-t border-[var(--oasis-border)] pt-5 sm:grid-cols-[160px_1fr] sm:gap-8">
+      <h2 className="font-mono text-label font-semibold uppercase text-[var(--oasis-text-dim)] sm:pt-[3px]">{title}</h2>
+      <div className="flex max-w-[68ch] flex-col gap-3 text-body text-[var(--oasis-text-soft)]">{children}</div>
     </section>
   );
 }
@@ -21,10 +24,11 @@ export default async function MethodPage() {
   const live = await getLive();
   const versions = Object.entries(live.model_versions);
   return (
-    <div className="mx-auto flex w-full max-w-[860px] flex-col gap-[14px] p-3 sm:p-5">
-      <div className="rounded-[10px] border border-[var(--oasis-border)] bg-[var(--oasis-surface)] p-4 sm:p-5">
-        <h1 className="text-[20px] font-extrabold tracking-[-0.02em] sm:text-[24px]">How the forecasts are made</h1>
-        <p className="mt-2 text-[13.5px] leading-[1.7] text-[var(--oasis-text-muted)]">
+    <div className="mx-auto flex w-full max-w-[860px] flex-col gap-6 p-4 pb-12 sm:p-6">
+      <div className="flex flex-col gap-3 pb-2 sm:pr-[20%]">
+        <span className="font-mono text-label font-semibold uppercase text-[var(--oasis-text-dim)]">Method</span>
+        <h1 className="text-display font-extrabold">How the forecasts are made</h1>
+        <p className="max-w-[62ch] text-lead text-[var(--oasis-text-muted)]">
           RealscoresAI publishes calibrated pre-match probabilities for five leagues. Every number on the site comes from the same
           pipeline described here, is tested on seasons the model never saw, and is frozen before kickoff so it can be
           judged afterwards. Probabilistic forecasts, not betting advice.
@@ -60,7 +64,7 @@ export default async function MethodPage() {
           weight. Scorelines, over 2.5 and both-teams-score come from a separate Dixon-Coles Poisson model. The linear
           models are what let each match page show which factors moved the forecast.
         </p>
-        <p className="font-mono text-[12px] text-[var(--oasis-text-muted)]">
+        <p className="font-mono text-meta text-[var(--oasis-text-muted)]">
           Serving now:{" "}
           {versions.map(([lg, v], i) => (
             <span key={lg}>

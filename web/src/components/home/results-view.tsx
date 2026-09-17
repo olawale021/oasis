@@ -10,6 +10,7 @@ import type { LiveData } from "@/lib/data";
 import type { LeagueCode } from "@/lib/types";
 import type { RecentResult } from "@/lib/types";
 import type { Tier } from "@/lib/viewer";
+import { IconCheck, IconCross } from "@/components/icons";
 
 export type ResultsFilter = "all" | "closer" | "market" | "hit";
 export const TASTER_PER_DAY = 2;
@@ -241,7 +242,7 @@ function Verdict({ r, compact = false, delayMs = 0 }: { r: RecentResult; compact
 
 const PICK_LABEL = ["home win", "draw", "away win"];
 
-/** Hit or miss on the top pick, in words: "✓ picked home win". */
+/** Hit or miss on the top pick, in words: "[check] picked home win". */
 function PickMark({ r, align = "end" }: { r: RecentResult; align?: "end" | "start" }) {
   const l = r.locked!;
   if (l.correct === null) return null;
@@ -257,7 +258,7 @@ function PickMark({ r, align = "end" }: { r: RecentResult; align?: "end" | "star
         className="flex h-[15px] w-[15px] items-center justify-center rounded-full text-[10px] leading-none"
         style={{ background: ok ? "var(--oasis-positive)" : "var(--oasis-away)", color: ok ? "var(--oasis-home-ink)" : "#1a1206" }}
       >
-        {ok ? "✓" : "✗"}
+        {ok ? <IconCheck size={10} strokeWidth={2.6} /> : <IconCross size={9} strokeWidth={2.6} />}
       </span>
       {ok ? "picked" : "picked"} {PICK_LABEL[pick]}
     </span>

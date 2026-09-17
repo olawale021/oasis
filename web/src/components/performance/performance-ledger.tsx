@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { LEAGUE_CODES, LEAGUE_NAMES } from "@/lib/data";
 import type { LiveData } from "@/lib/data";
 import type { LedgerRow, LeagueFilter } from "@/lib/types";
+import { IconCheck, IconCross } from "@/components/icons";
 
 /** The ledger mixes two tracks and the row itself is the only place that
  * says which: the matchday chain tags live rows "<model> · live" and
@@ -115,8 +116,8 @@ export function PerformanceLedger({ live }: { live: LiveData }) {
           <span className="flex-1 text-[13.5px] font-bold">{r.fixture}</span>
           <span className="w-[98px]">{r.published}</span>
           <span className="w-[98px]">{r.final}</span>
-          <span className="w-[76px]" style={{ color: r.won ? "var(--oasis-positive)" : "var(--oasis-warn)" }}>
-            {r.result} {r.won ? "✓" : "✗"}
+          <span className="flex w-[76px] items-center gap-[4px]" style={{ color: r.won ? "var(--oasis-positive)" : "var(--oasis-warn)" }}>
+            {r.result} {r.won ? <IconCheck size={11} strokeWidth={2.2} /> : <IconCross size={10} strokeWidth={2.2} />}
           </span>
           <span className="w-[74px] text-right">{r.logLoss.toFixed(2)}</span>
           <span className="w-[74px] text-right">

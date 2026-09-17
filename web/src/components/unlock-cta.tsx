@@ -7,7 +7,7 @@ import type { Tier } from "@/lib/viewer";
 /** The one call-to-action behind every lock. Anonymous viewers are asked to
  * sign in (free account unlocks the daily taster); free viewers are sent to
  * pricing. Client component so it can open Clerk's modal from server pages. */
-export function UnlockCta({ tier, compact = false }: { tier: Tier; compact?: boolean }) {
+export function UnlockCta({ tier, compact = false, label }: { tier: Tier; compact?: boolean; label?: string }) {
   const cls = compact
     ? "rs-cta whitespace-nowrap rounded-[6px] bg-[var(--oasis-home)] px-[9px] py-[4px] font-mono text-[10.5px] font-bold text-[var(--oasis-home-ink)]"
     : "rs-cta whitespace-nowrap rounded-[7px] bg-[var(--oasis-home)] px-[13px] py-[7px] text-[12.5px] font-bold text-[var(--oasis-home-ink)]";
@@ -15,14 +15,14 @@ export function UnlockCta({ tier, compact = false }: { tier: Tier; compact?: boo
     return (
       <SignInButton mode="modal">
         <button type="button" className={cls}>
-          {compact ? "Sign in" : "Sign in to unlock"}
+          {label ?? (compact ? "Sign in" : "Sign in to unlock")}
         </button>
       </SignInButton>
     );
   }
   return (
     <Link href="/pricing" className={cls}>
-      {compact ? "Unlock" : "Get lifetime access"}
+      {label ?? (compact ? "Unlock" : "Get lifetime access")}
     </Link>
   );
 }

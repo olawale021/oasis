@@ -44,6 +44,30 @@
   --radius-md: calc(var(--radius) * 0.8);
   --radius-lg: var(--radius);
   --radius-xl: calc(var(--radius) * 1.4);
+
+  /* ---- Type scale. Six steps, used as text-label / text-meta / text-ui /
+     text-body / text-lead / text-title / text-display. Hierarchy comes from
+     weight and colour between steps, not from extra sizes. ---- */
+  --text-label: 10.5px;
+  --text-label--line-height: 1.4;
+  --text-label--letter-spacing: 0.1em;
+  --text-meta: 11.5px;
+  --text-meta--line-height: 1.5;
+  --text-ui: 12.5px;
+  --text-ui--line-height: 1.5;
+  --text-body: 13.5px;
+  --text-body--line-height: 1.7;
+  --text-lead: 15.5px;
+  --text-lead--line-height: 1.6;
+  --text-title: 22px;
+  --text-title--line-height: 1.15;
+  --text-title--letter-spacing: -0.02em;
+  --text-display: 30px;
+  --text-display--line-height: 1.05;
+  --text-display--letter-spacing: -0.03em;
+  --text-hero: 42px;
+  --text-hero--line-height: 1;
+  --text-hero--letter-spacing: -0.035em;
 }
 
 :root {
@@ -147,6 +171,18 @@ html.light {
   html {
     @apply font-sans;
   }
+}
+
+/* Skeleton bones for route loading states. Static block by default; the
+   shimmer only runs when motion is allowed. */
+.rs-bone { background: var(--oasis-surface-raised); border-radius: 5px; }
+@media (prefers-reduced-motion: no-preference) {
+  .rs-bone {
+    background: linear-gradient(90deg, var(--oasis-surface-raised) 0%, var(--oasis-border-strong) 45%, var(--oasis-surface-raised) 90%);
+    background-size: 220% 100%;
+    animation: rs-shimmer 1.6s ease-in-out infinite;
+  }
+  @keyframes rs-shimmer { from { background-position: 120% 0; } to { background-position: -120% 0; } }
 }
 
 /* Horizontal chip rows: scroll, but never show the scrollbar line. */

@@ -1,3 +1,5 @@
+import { IconLock } from "@/components/icons";
+
 interface ProbabilityBarProps {
   home: number;
   draw: number;
@@ -71,7 +73,12 @@ export function LockedBar({ height = 9, className = "", label = "locked", delayM
       }}
       title="Prediction locked for your access level"
     >
-      {height >= 18 ? `🔒 ${label.toUpperCase()}` : ""}
+      {height >= 18 && (
+        <span className="flex items-center gap-[5px]">
+          <IconLock size={11} />
+          {label.toUpperCase()}
+        </span>
+      )}
     </span>
   );
 }

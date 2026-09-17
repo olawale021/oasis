@@ -1,6 +1,7 @@
 import { Card, Empty, Stat, TABLE, TEXT } from "@/components/admin/ui";
 import { cn } from "@/lib/utils";
 import { clock, stamp, type OpsData } from "@/lib/ops";
+import { IconCheck, IconCross } from "@/components/icons";
 
 const pct = (x: number | null) => (x == null ? "—" : `${Math.round(x)}%`);
 
@@ -57,7 +58,7 @@ export function TabLedger({ ops }: { ops: OpsData }) {
                     </td>
                     <td className={cn(TABLE.td, "text-[var(--oasis-text-muted)]")}>{r.log_loss?.toFixed(2) ?? "—"}</td>
                     <td className={cn(TABLE.td, r.correct === 1 ? "text-[var(--oasis-positive)]" : r.correct === 0 ? "text-[var(--oasis-away)]" : "")}>
-                      {r.correct == null ? "—" : r.correct ? "✓" : "✗"}
+                      {r.correct == null ? "—" : r.correct ? <IconCheck size={12} strokeWidth={2.2} /> : <IconCross size={11} strokeWidth={2.2} />}
                     </td>
                   </tr>
                 ))}

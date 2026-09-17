@@ -4,56 +4,69 @@ import { getViewer } from "@/lib/viewer";
 
 export const dynamic = "force-dynamic";
 
+/** A labelled block in the account ledger: name on the left, content on the
+ * right, a rule above. Same rhythm as the method page. */
+function Block({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <section className="grid gap-3 border-t border-[var(--oasis-border)] pt-5 sm:grid-cols-[140px_1fr] sm:gap-8">
+      <h2 className="font-mono text-label font-semibold uppercase text-[var(--oasis-text-dim)] sm:pt-[3px]">{label}</h2>
+      <div className="flex flex-col gap-3 text-body text-[var(--oasis-text-soft)]">{children}</div>
+    </section>
+  );
+}
+
 export default async function AccountPage() {
   const [viewer, user] = await Promise.all([getViewer(), currentUser()]);
   const email = user?.primaryEmailAddress?.emailAddress ?? "—";
+  const premium = viewer.tier === "premium";
 
   return (
-    <div className="mx-auto flex w-full max-w-[720px] flex-col gap-[14px] p-3 sm:p-5">
-      <h1 className="text-[21px] font-bold tracking-[-0.02em]">Account</h1>
+    <div className="mx-auto flex w-full max-w-[760px] flex-col gap-6 p-4 pb-12 sm:p-6">
+      <div className="flex flex-col gap-3 pb-2">
+        <span className="font-mono text-label font-semibold uppercase text-[var(--oasis-text-dim)]">Account</span>
+        <h1 className="text-display font-extrabold">{premium ? "Lifetime member" : "Free account"}</h1>
+      </div>
 
-      <section className="rounded-[10px] border border-[var(--oasis-border)] bg-[var(--oasis-surface)] p-4">
-        <div className="font-mono text-[10px] font-semibold tracking-[0.1em] text-[var(--oasis-text-dim)]">ACCESS</div>
-        <div className="mt-2 flex flex-wrap items-center gap-3">
+      <Block label="Access">
+        <div className="flex flex-wrap items-center gap-3">
           <span
-            className="rounded-full px-[10px] py-[4px] font-mono text-[11px] font-bold tracking-[0.08em]"
+            className="rounded-full px-[10px] py-[4px] font-mono text-label font-bold"
             style={
-              viewer.tier === "premium"
-                ? { background: "var(--oasis-positive-tint)", color: "var(--oasis-positive)", border: "1px solid rgba(47,207,154,.35)" }
+              premium
+                ? { background: "var(--oasis-positive-tint)", color: "var(--oasis-positive)", border: "1px solid var(--oasis-positive)" }
                 : { background: "var(--oasis-surface-raised)", color: "var(--oasis-text-muted)", border: "1px solid var(--oasis-border-strong)" }
             }
           >
-            {viewer.tier === "premium" ? "LIFETIME" : "FREE"}
+            {premium ? "LIFETIME" : "FREE"}
           </span>
-          <span className="text-[13px] text-[var(--oasis-text-muted)]">
-            {viewer.tier === "premium"
+          <span className="text-[var(--oasis-text-muted)]">
+            {premium
               ? "All five leagues, every upcoming prediction, full explanations."
               : "Two highest-confidence predictions per day. Finished matches are always open."}
           </span>
         </div>
-        {viewer.tier !== "premium" && (
+        {!premium && (
           <Link
             href="/pricing"
-            className="mt-4 inline-block rounded-[7px] bg-[var(--oasis-home)] px-[13px] py-[7px] text-[12.5px] font-bold text-[var(--oasis-home-ink)]"
+            className="rs-cta inline-block self-start rounded-[7px] bg-[var(--oasis-home)] px-[13px] py-[7px] text-ui font-bold text-[var(--oasis-home-ink)]"
           >
             Get lifetime access
           </Link>
         )}
-      </section>
+      </Block>
 
-      <section className="rounded-[10px] border border-[var(--oasis-border)] bg-[var(--oasis-surface)] p-4">
-        <div className="font-mono text-[10px] font-semibold tracking-[0.1em] text-[var(--oasis-text-dim)]">PROFILE</div>
-        <div className="mt-2 text-[13px]">
+      <Block label="Profile">
+        <div>
           <span className="text-[var(--oasis-text-muted)]">Signed in as</span> {email}
         </div>
-        <div className="mt-1 font-mono text-[11px] text-[var(--oasis-text-dim)]">
+        <div className="font-mono text-meta text-[var(--oasis-text-dim)]">
           Manage email, password and sessions from the avatar menu in the header.
         </div>
-      </section>
+      </Block>
 
-      <section className="rounded-[10px] border border-dashed border-[var(--oasis-border)] p-4 text-[12.5px] text-[var(--oasis-text-dim)]">
-        Telegram alerts and alert preferences arrive with the Telegram phase.
-      </section>
+      <Block label="Alerts">
+        <div className="text-[var(--oasis-text-dim)]">Telegram alerts and alert preferences arrive with the Telegram phase.</div>
+      </Block>
     </div>
   );
 }

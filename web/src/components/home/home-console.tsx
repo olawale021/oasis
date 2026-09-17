@@ -12,6 +12,7 @@ import type { DerivedMatch, LeagueFilter } from "@/lib/types";
 import { TeamSide } from "@/components/team-logo";
 import { HowToReadCard, LiveRecordCard, MarketCard, ResultsHero, ResultsList, SignInStrip, type ResultsFilter } from "@/components/home/results-view";
 import { NextKickoff } from "@/components/home/next-kickoff";
+import { IconCheck, IconCross, IconLock } from "@/components/icons";
 
 const DAY_TABS = ["Today", "Tomorrow", "Week", "Results"] as const;
 const TASTER_PER_DAY = 2;
@@ -188,7 +189,7 @@ export function HomeConsole({ live, tier }: { live: LiveData; tier: Tier }) {
                 : { color: "var(--oasis-text-muted)", border: "1px solid var(--oasis-border)" }
             }
           >
-            {confirmedOnly ? "Lineups confirmed ✓" : "Lineups confirmed"}
+            <span className="flex items-center gap-[5px]">Lineups confirmed{confirmedOnly && <IconCheck size={12} strokeWidth={2} />}</span>
           </button>
           <button
             type="button"
@@ -202,7 +203,7 @@ export function HomeConsole({ live, tier }: { live: LiveData; tier: Tier }) {
                 : { color: "var(--oasis-text-muted)", border: "1px solid var(--oasis-border)" }
             }
           >
-            {highConfOnly ? "High confidence ✓" : premium ? "High confidence" : "High confidence 🔒"}
+            <span className="flex items-center gap-[5px]">High confidence{highConfOnly ? <IconCheck size={12} strokeWidth={2} /> : premium ? null : <IconLock size={12} />}</span>
           </button>
           {premium && derived.some((m) => m.edge !== null) ? (
             <button
@@ -215,14 +216,14 @@ export function HomeConsole({ live, tier }: { live: LiveData; tier: Tier }) {
                   : { color: "var(--oasis-text-muted)", border: "1px solid var(--oasis-border)" }
               }
             >
-              {edgeOnly ? "Edge ≥ 3% ✓" : "Edge ≥ 3%"}
+              <span className="flex items-center gap-[5px]">Edge ≥ 3%{edgeOnly && <IconCheck size={12} strokeWidth={2} />}</span>
             </button>
           ) : (
             <div
               className="rounded-[7px] border border-dashed border-[var(--oasis-border)] px-[10px] py-[6px] text-[11.5px] font-semibold text-[var(--oasis-text-dim)] lg:py-[7px] lg:text-[12px]"
               title={premium ? "No odds snapshots archived yet for these fixtures" : "Edge filter is part of lifetime access"}
             >
-              {premium ? "Edge ≥ 3% — needs odds" : "Edge ≥ 3% 🔒"}
+              {premium ? "Edge ≥ 3% — needs odds" : <span className="flex items-center gap-[5px]">Edge ≥ 3% <IconLock size={12} /></span>}
             </div>
           )}
           </div>
@@ -307,7 +308,7 @@ export function HomeConsole({ live, tier }: { live: LiveData; tier: Tier }) {
                       : { color: "var(--oasis-text-muted)", border: "1px solid var(--oasis-border)" }
                   }
                 >
-                  {confirmedOnly ? "Lineups confirmed ✓" : "Lineups confirmed"}
+                  <span className="flex items-center gap-[5px]">Lineups confirmed{confirmedOnly && <IconCheck size={12} strokeWidth={2} />}</span>
                 </button>
                 <button
                   type="button"
@@ -320,7 +321,7 @@ export function HomeConsole({ live, tier }: { live: LiveData; tier: Tier }) {
                       : { color: "var(--oasis-text-muted)", border: "1px solid var(--oasis-border)" }
                   }
                 >
-                  {highConfOnly ? "High confidence ✓" : premium ? "High confidence" : "High confidence 🔒"}
+                  <span className="flex items-center gap-[5px]">High confidence{highConfOnly ? <IconCheck size={12} strokeWidth={2} /> : premium ? null : <IconLock size={12} />}</span>
                 </button>
               </>
             )}
@@ -523,7 +524,7 @@ export function HomeConsole({ live, tier }: { live: LiveData; tier: Tier }) {
             </div>
           </div>
           {premium ? (
-            <span className="font-mono text-[11.5px] font-bold text-[var(--oasis-positive)]">you&rsquo;re in ✓</span>
+            <span className="flex items-center gap-[5px] font-mono text-[11.5px] font-bold text-[var(--oasis-positive)]">you&rsquo;re in <IconCheck size={13} strokeWidth={2} /></span>
           ) : (
             <UnlockCta tier={tier} />
           )}
@@ -630,7 +631,7 @@ function EdgeInfoPopover({ matches, onClose }: { matches: DerivedMatch[]; onClos
           onClick={onClose}
           className="cursor-pointer text-[13px] font-bold text-[var(--oasis-text-muted)]"
         >
-          ✕
+          <IconCross size={14} strokeWidth={1.8} />
         </button>
       </div>
 
