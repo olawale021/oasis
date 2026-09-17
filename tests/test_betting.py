@@ -265,6 +265,8 @@ class Horizon(unittest.TestCase):
 
     def test_skips_kicked_off_and_windowless(self):
         self.assertEqual(grade_horizon(self.conn, self.pred, NOW)["horizon_rows"], 0)  # NOW is after kickoff
+        # Consensus exists but the fixture is still 4 days out: wait.
+        self.assertEqual(grade_horizon(self.conn, self.pred, "2026-09-10T15:00:00+00:00")["horizon_rows"], 0)
         self.conn.execute("DELETE FROM market_consensus WHERE snapshot = '24h'")
         self.assertEqual(grade_horizon(self.conn, self.pred, self.T_DAY_BEFORE)["horizon_rows"], 0)
 

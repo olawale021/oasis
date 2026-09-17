@@ -46,9 +46,12 @@ from betting.thresholds import THRESHOLDS_VERSION, grade  # noqa: E402
 
 DECIDED_STATUSES = ("FT", "AET", "PEN")
 PREDICTIONS_PATH = config.ROOT_DIR / "outputs" / "predictions.json"
-# odds window -> ledger stage. Extend with ("6h", "h6"), ("1h", "h1") for
-# the full curve; each adds seven rows per fixture.
-HORIZONS = (("24h", "h24"),)
+# (odds window, ledger stage, max hours to kickoff). Grading waits until
+# the fixture is inside the band even if the window's consensus already
+# exists -- odds archived under the old 12-96h "24h" definition would
+# otherwise be graded four days out. Extend with ("6h", "h6", 12.0),
+# ("1h", "h1", 3.0) for the full curve; each adds seven rows per fixture.
+HORIZONS = (("24h", "h24", 36.0),)
 
 REC_COLUMNS = (
     "fixture_id", "stage", "league_code", "kickoff_utc", "locked_at", "hours_to_kickoff", "market", "selection",
@@ -134,7 +137,10 @@ def grade_horizon(conn, predictions: dict, now_iso: str) -> dict:
         goals_version = reg.get("goals", {}).get("version")
         if not model_version:
             continue  # cannot stamp a release; the row would be unreproducible
-        for window, stage in HORIZONS:
+        for window, stage, max_hours in HORIZONS:
+            hours = (kickoff - now).total_seconds() / 3600
+            if hours > max_hours:
+                continue
             if conn.execute(
                 "SELECT 1 FROM betting_recommendations WHERE fixture_id = ? AND stage = ?", (p["fixture_id"], stage)
             ).fetchone():
@@ -147,7 +153,6 @@ def grade_horizon(conn, predictions: dict, now_iso: str) -> dict:
             by_market = {}
             for r in consensus:
                 by_market.setdefault(r["market"], {})[r["selection"]] = r
-            hours = (kickoff - now).total_seconds() / 3600
             wrote = 0
             for market, sels in model_probs(p).items():
                 mkt = by_market.get(market)
