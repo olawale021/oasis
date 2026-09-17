@@ -245,7 +245,7 @@ function Row({ it, open, setOpen }: { it: BettingItem; open: string | null; setO
         className={cn("cursor-pointer border-t border-[var(--oasis-border-row)] hover:bg-[var(--oasis-hover-row)]", it.level === "PASS" && "opacity-70")}
       >
         <td className={cn(td, "whitespace-nowrap text-[var(--oasis-text-muted)]")}>
-          {new Date(m.kickoffUtc).toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short", timeZone: "UTC" })} {m.ko}
+          {new Date(m.kickoffUtc).toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short", timeZone: "UTC" })} {utcClock(m.kickoffUtc)}
         </td>
         <td className="px-2 py-[9px] align-middle font-sans text-[12.5px] font-semibold">
           <MatchName home={m.home} away={m.away} homeId={m.homeId} awayId={m.awayId} size={16} />
@@ -260,7 +260,12 @@ function Row({ it, open, setOpen }: { it: BettingItem; open: string | null; setO
           {it.ev === null ? "—" : `${pp(it.ev)}%`}
         </td>
         <td className={cn(td, "text-right text-[var(--oasis-text-muted)]")}>{it.h2h ? `${it.h2h.k}/${it.h2h.n}` : "—"}</td>
-        <td className={cn(td, "whitespace-nowrap text-[var(--oasis-text-muted)]")}>{form}</td>
+        <td
+          className={cn(td, "whitespace-nowrap text-[var(--oasis-text-muted)]")}
+          title={it.market === "1X2" ? undefined : `${m.home} · ${m.away}: how many of each side's last 10 went "${it.label.toLowerCase()}"`}
+        >
+          {form}
+        </td>
         <td className={cn(td, "text-[var(--oasis-text-dim)]")}>{m.conf}</td>
         <td className={td}>
           <span className={cn("rounded-[4px] border px-[6px] py-[1px] font-mono text-[10.5px]", lvl.cls)} title={it.locked ? "graded at lock" : "provisional until lock"}>
