@@ -71,7 +71,7 @@ export async function handleUpdate(update: Record<string, unknown>, ctx: Ctx): P
       return say(todayMessage(live, leagues, asLeague(parsed.arg)));
     case "results": {
       const since = new Date(Date.parse(live.generated_at) - 7 * 86400e3).toISOString().slice(0, 10);
-      return say(resultsMessage(live, leagues, since));
+      return say(resultsMessage(live, leagues, since, asLeague(parsed.arg)));
     }
     case "performance":
       return say(performanceMessage(live));

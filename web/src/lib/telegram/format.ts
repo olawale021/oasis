@@ -20,12 +20,26 @@ const day = (iso: string) => iso.slice(0, 10);
 const dayLabel = (isoDay: string) =>
   new Date(`${isoDay}T00:00:00Z`).toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long", timeZone: "UTC" });
 
+const shortName = (name: string) => esc(name.replace(/^(FC|SV|RB|AS|SS|US|AC|1\. FC) /, "").replace(/ (FC|CF|SC|AFC|BC|SAD)$/, ""));
+
 function fixtureLine(m: MatchRecord): string {
-  const head = `${utcClock(m.kickoffUtc)} <b>${esc(m.home)}</b> v <b>${esc(m.away)}</b> <code>${m.lg}</code>`;
-  if (m.gated) return `${head}\n   🔒 locked — sign in or lifetime access`;
-  const probs = `${Math.round(m.h)}/${Math.round(m.d)}/${Math.round(m.a)}`;
-  const conf = m.conf === "HIGH" ? " · <b>HIGH</b>" : m.conf === "MED" ? " · med" : "";
-  return `${head}\n   ${probs} → ${esc(pick(m))}${conf} · likely ${esc(m.condScore)}`;
+  const head = `${utcClock(m.kickoffUtc)}  <b>${shortName(m.home)}</b> v <b>${shortName(m.away)}</b>`;
+  if (m.gated) return `${head}  🔒`;
+  const conf = m.conf === "HIGH" ? " · <b>high</b>" : "";
+  return `${head}\n        ${Math.round(m.h)} · ${Math.round(m.d)} · ${Math.round(m.a)}  →  ${esc(pick(m))}${conf}`;
+}
+
+/** Group rows by league, in the site's league order, with a heading per
+ * league and a blank line between groups: readable on a phone, no code
+ * repeated on every row. */
+function byLeague<T extends { lg: LeagueCode }>(rows: T[], line: (r: T) => string): string {
+  const order: LeagueCode[] = ["EPL", "LAL", "SEA", "BUN", "MLS"];
+  const groups: string[] = [];
+  for (const lg of order) {
+    const rs = rows.filter((r) => r.lg === lg);
+    if (rs.length) groups.push(`<b>${esc(LEAGUE_NAMES[lg])}</b>\n${rs.map(line).join("\n")}`);
+  }
+  return groups.join("\n\n");
 }
 
 /** Upcoming fixtures on the payload's UTC day; if none, the next day that
@@ -42,29 +56,35 @@ export function todayMessage(live: LiveData, leagues: LeagueCode[], league?: Lea
     target = upcoming.filter((m) => day(m.kickoffUtc) === next);
     title = dayLabel(next);
   }
-  const lines = target.slice(0, 25).map(fixtureLine);
-  const more = target.length > 25 ? `\n…and ${target.length - 25} more on the site.` : "";
-  return `<b>${title}</b>${league ? ` · ${esc(LEAGUE_NAMES[league])}` : ""} · ${target.length} ${target.length === 1 ? "match" : "matches"} (UTC)\n\n${lines.join("\n")}${more}\n\n${FOOTER}`;
+  const locked = target.filter((m) => m.gated).length;
+  const lockedNote = locked ? `\n\n🔒 ${locked} locked — sign in for the daily taster, lifetime for all.` : "";
+  const legend = locked < target.length ? "<i>home · draw · away %, then the model's pick.</i>\n" : "";
+  return `<b>${title}</b> · ${target.length} ${target.length === 1 ? "match" : "matches"} · times UTC\n\n${byLeague(target.slice(0, 30), fixtureLine)}${lockedNote}\n\n${legend}${FOOTER}`;
 }
 
 function resultLine(r: RecentResult): string {
-  const l = r.locked;
-  const verdict = !l || l.correct == null ? "" : l.correct ? " ✓" : " ✗";
-  const closer = l?.closer === true ? " · closer than market" : "";
-  const p = l ? ` · pick ${l.h >= l.d && l.h >= l.a ? esc(r.home) : l.a >= l.d ? esc(r.away) : "Draw"}` : "";
-  return `<b>${esc(r.home)} ${esc(r.score)} ${esc(r.away)}</b> <code>${r.lg}</code>${p}${verdict}${closer}`;
+  const l = r.locked!;
+  const hit = l.correct ? "✅" : "❌";
+  const beat = l.closer === true ? " ↑" : "";
+  // The score says who won; only a miss needs the pick spelled out.
+  const picked = l.h >= l.d && l.h >= l.a ? r.home : l.a >= l.d ? r.away : "Draw";
+  const miss = l.correct ? "" : `  <i>(picked ${shortName(picked)})</i>`;
+  return `${hit} ${shortName(r.home)} <b>${esc(r.score)}</b> ${shortName(r.away)}${beat}${miss}`;
 }
 
-export function resultsMessage(live: LiveData, leagues: LeagueCode[], sinceDay?: string): string {
+export function resultsMessage(live: LiveData, leagues: LeagueCode[], sinceDay?: string, league?: LeagueCode): string {
   const rows = live.recent_results
-    .filter((r) => r.locked && r.locked.correct != null && leagues.includes(r.lg) && (!sinceDay || day(r.kickoffUtc) >= sinceDay))
+    .filter((r) => r.locked && r.locked.correct != null && (league ? r.lg === league : leagues.includes(r.lg)) && (!sinceDay || day(r.kickoffUtc) >= sinceDay))
     .sort((a, b) => b.kickoffUtc.localeCompare(a.kickoffUtc));
   if (rows.length === 0) return "No settled forecasts in that window yet.";
   const hits = rows.filter((r) => r.locked!.correct).length;
   const compared = rows.filter((r) => r.locked!.closer != null);
   const closer = compared.filter((r) => r.locked!.closer).length;
-  const head = `<b>Results</b> · ${hits} of ${rows.length} top picks right${compared.length ? ` · closer than the bookmakers on ${closer} of ${compared.length}` : ""}`;
-  return `${head}\n\n${rows.slice(0, 30).map(resultLine).join("\n")}\n\n<i>Every locked forecast counted, none removed.</i>`;
+  const days = [...new Set(rows.map((r) => day(r.kickoffUtc)))].slice(0, 3);
+  const sections = days.map((d) => `<b>${dayLabel(d)}</b>\n\n${byLeague(rows.filter((r) => day(r.kickoffUtc) === d), resultLine)}`);
+  const head = `<b>Results</b>${league ? ` · ${esc(LEAGUE_NAMES[league])}` : ""}\nTop pick right: <b>${hits} of ${rows.length}</b>${compared.length ? `\nCloser than the bookmakers: <b>${closer} of ${compared.length}</b>` : ""}`;
+  const more = rows.length > days.reduce((n, d) => n + rows.filter((r) => day(r.kickoffUtc) === d).length, 0) ? "\n\n<i>Older days on realscores.app/performance.</i>" : "";
+  return `${head}\n\n${sections.join("\n\n")}${more}\n\n<i>↑ = the model gave the real result more probability than the bookmakers did. /results EPL for one league.</i>`;
 }
 
 export function performanceMessage(live: LiveData): string {
@@ -84,14 +104,14 @@ export function finalMessage(m: MatchRecord): string {
 export function highConfMessage(matches: MatchRecord[]): string | null {
   const hc = matches.filter((m) => !m.gated && m.conf === "HIGH");
   if (hc.length === 0) return null;
-  return `<b>High-confidence forecasts</b> · ${hc.length}\n\n${hc.map(fixtureLine).join("\n")}\n\n${FOOTER}`;
+  return `<b>High-confidence forecasts</b> · ${hc.length}\n\n${byLeague(hc, fixtureLine)}\n\n${FOOTER}`;
 }
 
 export function settledMessage(rows: RecentResult[]): string | null {
   const done = rows.filter((r) => r.locked && r.locked.correct != null);
   if (done.length === 0) return null;
   const hits = done.filter((r) => r.locked!.correct).length;
-  return `<b>Settled</b> · ${hits} of ${done.length} right\n\n${done.map(resultLine).join("\n")}`;
+  return `<b>Settled</b> · ${hits} of ${done.length} right\n\n${byLeague(done, resultLine)}`;
 }
 
 /** WATCH/VALUE rows only -- PASS is the engine saying nothing to see. */
@@ -111,7 +131,7 @@ export function digestMessage(live: LiveData, prefs: TelegramPrefs): string {
   const today = day(live.generated_at);
   const yesterday = new Date(Date.parse(`${today}T00:00:00Z`) - 86400e3).toISOString().slice(0, 10);
   const parts = [`<b>RealscoresAI · ${dayLabel(today)}</b>`];
-  parts.push(todayMessage(live, prefs.leagues).replace(`\n\n${FOOTER}`, ""));
+  parts.push(todayMessage(live, prefs.leagues).replace(`<i>home · draw · away %, then the model's pick.</i>\n`, "").replace(`\n\n${FOOTER}`, ""));
   if (prefs.high_conf) {
     const hc = highConfMessage(live.matches.filter((m) => prefs.leagues.includes(m.lg) && day(m.kickoffUtc) === today));
     if (hc) parts.push(hc.replace(`\n\n${FOOTER}`, ""));
@@ -127,7 +147,7 @@ export function digestMessage(live: LiveData, prefs: TelegramPrefs): string {
 export const HELP = [
   "<b>Commands</b>",
   "/today [EPL|LAL|SEA|BUN|MLS] — upcoming forecasts",
-  "/results — settled forecasts, last 7 days",
+  "/results [league] — settled forecasts, last 7 days",
   "/performance — the live record",
   "/betting — graded model-vs-market disagreements (lifetime, 18+)",
   "/alerts — choose leagues and alert types",
