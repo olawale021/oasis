@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Instrument_Sans, JetBrains_Mono } from "next/font/google";
 import { ClerkProvider } from "@clerk/nextjs";
 import { shadcn } from "@clerk/ui/themes";
+import { AuthSync } from "@/components/auth-sync";
 import { SiteHeader } from "@/components/site-header";
 import { getLive } from "@/lib/live-server";
 import { getViewer } from "@/lib/viewer";
@@ -46,6 +47,7 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
           (method, performance) without the window itself growing. */}
       <body className="flex h-dvh flex-col overflow-hidden bg-[var(--oasis-bg)] text-[var(--oasis-text)]">
         <ClerkProvider appearance={{ theme: shadcn }}>
+          <AuthSync />
           <SiteHeader generatedAt={live.generated_at} tier={viewer.tier} />
           <main className="min-h-0 flex-1 overflow-y-auto">{children}</main>
         </ClerkProvider>
