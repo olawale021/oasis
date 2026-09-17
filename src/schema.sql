@@ -320,6 +320,7 @@ CREATE TABLE IF NOT EXISTS betting_results (
     -- over the last day, which is the informative one (PRD 18 horizon).
     clv                REAL,
     clv_24h            REAL,
+    clv_version        TEXT,                   -- edge.CLV_VERSION that produced clv/clv_24h
     settled_at         TEXT NOT NULL
 );
 

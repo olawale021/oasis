@@ -1,6 +1,11 @@
 """The arithmetic of value (Betting PRD 12, 13, 20). Pure functions;
 probabilities in [0,1], odds decimal."""
 
+# Stamped on every betting_results row. Bump when the CLV definition
+# changes, so a row says which formula produced its number -- the first
+# version compared best-of-N odds to the closing median and was wrong.
+CLV_VERSION = "v2-median-vs-median"
+
 
 def edge(model_prob: float, market_prob: float) -> float:
     """Model minus market, in probability units (x100 for percentage points)."""

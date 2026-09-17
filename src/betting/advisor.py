@@ -131,12 +131,14 @@ def settle(conn, now_iso: str) -> dict:
         conn.execute(
             """
             INSERT OR IGNORE INTO betting_results
-                (recommendation_id, result_home, result_away, won, profit_1u, closing_odds, closing_prob, clv, clv_24h, settled_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                (recommendation_id, result_home, result_away, won, profit_1u, closing_odds, closing_prob,
+                 clv, clv_24h, clv_version, settled_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (r["recommendation_id"], r["home_goals"], r["away_goals"], int(won),
              round(profit, 4) if profit is not None else None, closing_odds, closing_prob,
-             round(clv, 6) if clv is not None else None, round(clv_24h, 6) if clv_24h is not None else None, now_iso),
+             round(clv, 6) if clv is not None else None, round(clv_24h, 6) if clv_24h is not None else None,
+             edge_math.CLV_VERSION, now_iso),
         )
         counts["settled"] += 1
         if clv_24h is not None:
@@ -171,9 +173,9 @@ def recompute_clv(conn, now_iso: str) -> dict:
         clv_24h = edge_math.clv(r["h24"], r["closing"]) if r["h24"] and r["closing"] else None
         vals = (round(clv, 6) if clv is not None else None, round(clv_24h, 6) if clv_24h is not None else None)
         cur = conn.execute(
-            "UPDATE betting_results SET clv = ?, clv_24h = ? WHERE recommendation_id = ?"
-            " AND (clv IS NOT ? OR clv_24h IS NOT ?)",
-            (*vals, r["recommendation_id"], *vals),
+            "UPDATE betting_results SET clv = ?, clv_24h = ?, clv_version = ? WHERE recommendation_id = ?"
+            " AND (clv IS NOT ? OR clv_24h IS NOT ? OR clv_version IS NOT ?)",
+            (*vals, edge_math.CLV_VERSION, r["recommendation_id"], *vals, edge_math.CLV_VERSION),
         )
         changed += cur.rowcount
     conn.commit()
@@ -183,9 +185,10 @@ def recompute_clv(conn, now_iso: str) -> dict:
 def migrate(conn) -> None:
     """schema.sql only creates; columns added later need ALTER on live DBs."""
     cols = {r["name"] for r in conn.execute("PRAGMA table_info(betting_results)")}
-    if "clv_24h" not in cols:
-        conn.execute("ALTER TABLE betting_results ADD COLUMN clv_24h REAL")
-        conn.commit()
+    for name, decl in (("clv_24h", "REAL"), ("clv_version", "TEXT")):
+        if name not in cols:
+            conn.execute(f"ALTER TABLE betting_results ADD COLUMN {name} {decl}")
+    conn.commit()
 
 
 def run(db_path: Path = None) -> dict:

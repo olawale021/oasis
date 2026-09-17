@@ -180,6 +180,7 @@ class Ledger(unittest.TestCase):
         # fetch, so it equals clv; in production the lock usually follows it
         # and clv is ~0 while clv_24h still carries the day's movement.
         self.assertAlmostEqual(res[("1X2", "home")]["clv_24h"], 1.83 / 1.61 - 1, places=5)
+        self.assertEqual(res[("1X2", "home")]["clv_version"], edge_math.CLV_VERSION)
         # BTTS did not move: flat line, zero CLV, not a flattering positive.
         self.assertAlmostEqual(res[("BTTS", "yes")]["clv"], 0.0, places=5)
 
@@ -202,9 +203,11 @@ class ClvRecompute(unittest.TestCase):
         conn.execute("UPDATE fixtures SET status_short='FT', home_goals=2, away_goals=1 WHERE fixture_id=?", (FIX,))
         settle(conn, NOW)
         # Simulate rows settled under the old best-vs-median definition.
-        conn.execute("UPDATE betting_results SET clv = 0.5, clv_24h = NULL"); conn.commit()
+        conn.execute("UPDATE betting_results SET clv = 0.5, clv_24h = NULL, clv_version = NULL"); conn.commit()
         out = recompute_clv(conn, NOW)
         self.assertEqual(out["changed"], 7)
+        self.assertEqual(conn.execute("SELECT COUNT(DISTINCT clv_version) FROM betting_results").fetchone()[0], 1)
+        self.assertEqual(conn.execute("SELECT clv_version FROM betting_results LIMIT 1").fetchone()[0], edge_math.CLV_VERSION)
         h24 = conn.execute("SELECT r.clv_24h FROM betting_results r JOIN betting_recommendations br USING(recommendation_id)"
                            " WHERE br.market='1X2' AND br.selection='home'").fetchone()["clv_24h"]
         self.assertAlmostEqual(h24, 1.83 / 1.61 - 1, places=5)
@@ -219,9 +222,11 @@ class Migration(unittest.TestCase):
         from betting.advisor import migrate
         conn = fresh_db()
         conn.execute("ALTER TABLE betting_results DROP COLUMN clv_24h")
+        conn.execute("ALTER TABLE betting_results DROP COLUMN clv_version")
         migrate(conn)
         cols = {r["name"] for r in conn.execute("PRAGMA table_info(betting_results)")}
         self.assertIn("clv_24h", cols)
+        self.assertIn("clv_version", cols)
         migrate(conn)  # idempotent
 
 
