@@ -771,6 +771,33 @@ def build_recent_results(conn, retro_probs: dict = None, days: int = 7) -> list:
     return out
 
 
+GOALS_CALIBRATION_PATH = config.REPORTS_DIR / "goals_calibration_latest.json"
+
+
+def build_goals_skill():
+    """Held-out skill of the goals model on Over 2.5 and BTTS, per league and
+    pooled, from src/goals_calibration.py. The receipts behind showing the
+    bookmaker consensus rather than the model for these markets: the model
+    is at or near the base rate, so the site says so. None until the
+    diagnostic has run on this machine."""
+    if not GOALS_CALIBRATION_PATH.exists():
+        return None
+    rep = json.loads(GOALS_CALIBRATION_PATH.read_text())
+
+    def slim(r):
+        return {
+            "n": r["n_test"], "base_rate": r["base_rate"], "ll_base": r["base_log_loss"],
+            "ll_model": r["raw"]["log_loss"], "skill": r["skill_vs_base"],
+            "p_min": r["raw"]["p_min"], "p_max": r["raw"]["p_max"], "slope": r["slope_on_test"],
+        }
+
+    return {
+        "generated_at": rep["generated_at"],
+        "leagues": {lg: {mk: slim(v) for mk, v in mks.items()} for lg, mks in rep["leagues"].items()},
+        "pooled": {mk: slim(v) for mk, v in rep["pooled"].items()},
+    }
+
+
 def build_model_releases() -> list:
     """Per-league deployed release + release history, straight from the
     registry (PRD 14 'model version history' on the performance page)."""
@@ -894,6 +921,7 @@ def main() -> None:
         # Betting PRD 4/16: per-selection grades and H2H/form context. Locked
         # fixtures show their ledger rows; the rest are previews graded now.
         "betting": build_betting(conn, predictions),
+        "goals_skill": build_goals_skill(),
     }
 
     WEB_DATA_DIR.mkdir(parents=True, exist_ok=True)

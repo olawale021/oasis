@@ -3,13 +3,14 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import { AlertToggle } from "@/components/match/alert-toggle";
-import { getMatchById, utcClock } from "@/lib/data";
+import { getMatchById, marketTotals, utcClock } from "@/lib/data";
 import { getLive } from "@/lib/live-server";
 import { getViewer } from "@/lib/viewer";
 import { redactLive } from "@/lib/gate";
 import { UnlockCta } from "@/components/unlock-cta";
 import { deriveMatch } from "@/lib/derive";
 import { MatchName, TeamLogo } from "@/components/team-logo";
+import { IconLock } from "@/components/icons";
 
 export const dynamic = "force-dynamic";
 
@@ -28,14 +29,15 @@ export default async function MatchDetailPage({ params }: { params: Promise<{ id
   if (!record) notFound();
 
   const m = deriveMatch(record);
+  const totals = marketTotals(live, m.id);
   if (m.gated) {
     return (
-      <div className="flex w-full flex-col gap-[14px] p-3 sm:p-5">
-        <div className="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-[10px] border border-[var(--oasis-border)] bg-[var(--oasis-surface)] p-4">
+      <div className="flex w-full flex-col gap-6 p-4 sm:p-6">
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-2 border-b border-[var(--oasis-border)] pb-4">
           <Link href="/" className="font-mono text-[12px] font-semibold text-[var(--oasis-text-dim)]">
             ← Board
           </Link>
-          <span className="text-[18px] font-bold leading-none tracking-[-0.02em] sm:text-[21px]">
+          <span className="text-title font-bold">
             <MatchName home={m.home} away={m.away} homeId={m.homeId} awayId={m.awayId} size={26} />
           </span>
           <span className="font-mono text-[11.5px] font-medium text-[var(--oasis-text-muted)]">
@@ -51,12 +53,13 @@ export default async function MatchDetailPage({ params }: { params: Promise<{ id
           </span>
         </div>
 
-        <div className="flex flex-col gap-4 rounded-[10px] border border-[var(--oasis-border)] bg-[var(--oasis-surface)] p-5 sm:p-7">
+        <div className="flex max-w-[640px] flex-col gap-5">
           <div
             className="flex h-11 items-center justify-center rounded-[9px] font-mono text-[12px] font-semibold tracking-[0.1em] text-[var(--oasis-text-dim)]"
             style={{ background: "repeating-linear-gradient(135deg, var(--oasis-border-row) 0 8px, var(--oasis-surface-raised) 8px 16px)", border: "1px solid var(--oasis-border)" }}
           >
-            🔒 PREDICTION LOCKED
+            <IconLock size={13} />
+            <span className="ml-[7px]">PREDICTION LOCKED</span>
           </div>
           <div className="max-w-[560px] text-[13.5px] leading-[1.7] text-[var(--oasis-text-soft)]">
             {viewer.tier === "anon" ? (
@@ -107,12 +110,12 @@ export default async function MatchDetailPage({ params }: { params: Promise<{ id
   ];
 
   return (
-    <div className="flex w-full flex-col gap-[14px] p-3 sm:p-5">
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-[10px] border border-[var(--oasis-border)] bg-[var(--oasis-surface)] p-4">
+    <div className="flex w-full flex-col gap-6 p-4 sm:p-6">
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-2 border-b border-[var(--oasis-border)] pb-4">
         <Link href="/" className="font-mono text-[12px] font-semibold text-[var(--oasis-text-dim)]">
           ← Board
         </Link>
-        <span className="text-[18px] font-bold leading-none tracking-[-0.02em] sm:text-[21px]">
+        <span className="text-title font-bold">
           <MatchName home={m.home} away={m.away} homeId={m.homeId} awayId={m.awayId} size={26} />
         </span>
         <span className="font-mono text-[11.5px] font-medium text-[var(--oasis-text-muted)]">
@@ -138,7 +141,7 @@ export default async function MatchDetailPage({ params }: { params: Promise<{ id
         </span>
       </div>
 
-      <div className="flex flex-col gap-4 rounded-[10px] border border-[var(--oasis-border)] bg-[var(--oasis-surface)] p-4 sm:p-5">
+      <div className="flex flex-col gap-4">
         <div className="flex flex-col gap-[9px]">
           <div className="flex h-11 overflow-hidden rounded-[9px]">
             <div
@@ -174,8 +177,19 @@ export default async function MatchDetailPage({ params }: { params: Promise<{ id
           />
           <Stat label="Most common score" value={m.score} sub={`${Math.round(m.matrix.peakPct)}% chance · any result`} />
           <Stat label="Expected goals" value={`${m.muHome.toFixed(1)} – ${m.muAway.toFixed(1)}`} sub={`${m.home} – ${m.away}`} />
-          <Stat label="Over 2.5 goals" value={`${Math.round(matrix.over25)}%`} sub={`under ${Math.round(100 - matrix.over25)}%`} />
-          <Stat label="Both teams score" value={`${Math.round(matrix.btts)}%`} sub={`clean sheet ${Math.round(100 - matrix.btts)}%`} />
+          {/* Totals lead with the bookmaker consensus: on held-out seasons the
+              goals model is at or near the base rate for these markets (see
+              Performance), so its number is shown as the footnote, not the claim. */}
+          <Stat
+            label="Over 2.5 goals"
+            value={totals.over25 ? `${Math.round(totals.over25.mp)}%` : `${Math.round(matrix.over25)}%`}
+            sub={totals.over25 ? `bookmakers (${totals.over25.books ?? "—"}) · model ${Math.round(matrix.over25)}%, not validated` : "model · not validated · no odds yet"}
+          />
+          <Stat
+            label="Both teams score"
+            value={totals.btts ? `${Math.round(totals.btts.mp)}%` : `${Math.round(matrix.btts)}%`}
+            sub={totals.btts ? `bookmakers (${totals.btts.books ?? "—"}) · model ${Math.round(matrix.btts)}%, not validated` : "model · not validated · no odds yet"}
+          />
           <Stat
             label="Edge vs market"
             value={m.edgeLabel}
@@ -185,10 +199,10 @@ export default async function MatchDetailPage({ params }: { params: Promise<{ id
         </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-[14px] lg:grid-cols-[1fr_1fr_320px]">
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1fr_1fr_320px]">
         <div className="flex flex-col gap-[10px] rounded-[10px] border border-[var(--oasis-border)] bg-[var(--oasis-surface)] p-4">
           <div className="font-mono text-[10px] font-semibold tracking-[0.1em] text-[var(--oasis-text-dim)]">
-            SCORE PROBABILITY MATRIX
+            SCORE PROBABILITY MATRIX · GOALS MODEL, INDICATIVE
           </div>
           <div className="grid grid-cols-[16px_repeat(5,1fr)] gap-[4px]">
             <div />
@@ -224,15 +238,9 @@ export default async function MatchDetailPage({ params }: { params: Promise<{ id
           <div className="font-mono text-[10px] font-medium text-[var(--oasis-text-faint)]">
             rows = {m.home} goals · columns = {m.away} goals · Dixon–Coles Poisson
           </div>
-
-          <div className="mt-1 font-mono text-[10px] font-semibold tracking-[0.1em] text-[var(--oasis-text-dim)]">
-            TOTALS &amp; GOALS MARKETS
-          </div>
-          <div className="flex flex-col gap-[9px] font-mono text-[12px] font-medium">
-            <MarketBar label="O 1.5" value={matrix.over15} />
-            <MarketBar label="O 2.5" value={matrix.over25} />
-            <MarketBar label="O 3.5" value={matrix.over35} />
-            <MarketBar label="BTTS" value={matrix.btts} color="var(--oasis-positive)" />
+          <div className="font-mono text-[10px] font-medium leading-[1.5] text-[var(--oasis-text-faint)]">
+            The shape is the model&rsquo;s view of the fixture. Its totals are at or near the base rate on held-out
+            seasons, so the Over 2.5 and BTTS figures above are the bookmaker consensus, not this grid.
           </div>
         </div>
 
@@ -392,17 +400,6 @@ function Stat({ label, value, sub, valueColor }: { label: string; value: string;
   );
 }
 
-function MarketBar({ label, value, color = "var(--oasis-home)" }: { label: string; value: number; color?: string }) {
-  return (
-    <div className="flex items-center gap-[10px]">
-      <span className="w-[58px] text-[var(--oasis-text-muted)]">{label}</span>
-      <span className="h-2 flex-1 rounded-[4px] bg-[var(--oasis-border-row)]">
-        <span className="block h-full rounded-[4px]" style={{ width: `${value}%`, background: color }} />
-      </span>
-      <span>{value}%</span>
-    </div>
-  );
-}
 
 function MarketRow({ label, model, market }: { label: string; model: number; market: number }) {
   const diff = Math.round((model - market) * 10) / 10;

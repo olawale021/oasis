@@ -292,3 +292,24 @@ export interface BettingBlock {
   /** Keyed by fixture id as a string (JSON object keys). */
   context: Record<string, BettingContext>;
 }
+
+/** Held-out skill of the goals model per market (src/goals_calibration.py):
+ * log loss vs a constant base rate. skill <= ~0.01 nats means the model
+ * knows little the frequency does not, which is why the site shows the
+ * bookmaker consensus for totals and BTTS. */
+export interface GoalsSkillCell {
+  n: number;
+  base_rate: number;
+  ll_base: number;
+  ll_model: number;
+  skill: number;
+  p_min: number;
+  p_max: number;
+  slope: number;
+}
+
+export interface GoalsSkill {
+  generated_at: string;
+  leagues: Record<string, Partial<Record<BettingMarket, GoalsSkillCell>>>;
+  pooled: Partial<Record<BettingMarket, GoalsSkillCell>>;
+}

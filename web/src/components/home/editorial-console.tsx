@@ -65,12 +65,6 @@ export function EditorialConsole({ live }: { live: LiveData }) {
                 likely {featured.score}
               </span>
               <span className="rounded-[6px] border border-[var(--oasis-border)] px-[9px] py-1">
-                O2.5 {Math.round(featured.matrix.over25)}%
-              </span>
-              <span className="rounded-[6px] border border-[var(--oasis-border)] px-[9px] py-1">
-                BTTS {Math.round(featured.matrix.btts)}%
-              </span>
-              <span className="rounded-[6px] border border-[var(--oasis-border)] px-[9px] py-1">
                 {featured.marketLabel ? `market ${featured.marketLabel}` : "market — no odds yet"}
               </span>
             </div>

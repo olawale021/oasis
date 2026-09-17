@@ -7,7 +7,7 @@ export default function PrivacyPage() {
   return (
     <LegalPage
       title="Privacy policy"
-      updated="13 September 2026"
+      updated="17 September 2026"
       intro="RealscoresAI publishes football forecasts. We collect as little personal data as the service needs, we do not sell it, and this page says exactly what we keep and why."
     >
       <Section title="1 · Who we are">
@@ -22,6 +22,7 @@ export default function PrivacyPage() {
           <li><strong>Access status.</strong> Whether your account has lifetime access, and the date it was granted.</li>
           <li><strong>Payment records.</strong> If you buy lifetime access, the payment is processed by Stripe. We receive a payment reference, the amount and your email. We never see or store card numbers.</li>
           <li><strong>Preferences.</strong> Your theme choice is stored in your browser only. Alert preferences and a Telegram link, once those features exist, are stored with your account.</li>
+          <li><strong>Betting section.</strong> We do not know whether you bet, with whom, or how much. The site takes no bets, has no connection to any bookmaker account, and does not track what you do after leaving it. Grades, edges and the performance record are computed from match and odds data, not from anything about you. We rely on your confirmation that you are over 18; we do not run identity or age-verification checks.</li>
           <li><strong>Technical logs.</strong> Our host, Cloudflare, records request logs, including IP address and browser type, for security and to keep the service running. We do not use advertising trackers or third-party analytics.</li>
         </ul>
       </Section>
@@ -59,7 +60,7 @@ export default function PrivacyPage() {
         </p>
       </Section>
       <Section title="8 · Children">
-        <p>The service is for adults. We do not knowingly collect data from anyone under 18, and accounts found to belong to minors are closed.</p>
+        <p>The service, and the Betting section in particular, is for adults. We do not knowingly collect data from anyone under 18, and accounts found to belong to minors are closed.</p>
       </Section>
       <Section title="9 · Changes">
         <p>If this policy changes in a way that matters, we will say so on the site and update the date at the top of this page.</p>

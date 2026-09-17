@@ -98,14 +98,27 @@ def league_samples(conn, code: str) -> dict:
     return backtest_common.split_by_season(samples), cfg
 
 
+def base_rate_log_loss(entries: list) -> tuple:
+    """The constant-probability benchmark: what a model with no information
+    beyond the outcome frequency scores. Skill = this minus the model."""
+    ys = [y for _, y in entries]
+    base = sum(ys) / len(ys)
+    return base, -(base * math.log(base) + (1 - base) * math.log(1 - base))
+
+
 def analyse(fit_entries: list, test_entries: list) -> dict:
     a_test, b_test = fit_platt(test_entries)              # diagnosis, in-sample
     a_fit, b_fit = fit_platt(fit_entries)                 # correction, fitted out of sample
     corrected = [(apply_platt(p, a_fit, b_fit), y) for p, y in test_entries]
     ps = [p for p, _ in test_entries]
     cps = [p for p, _ in corrected]
+    base, ll_base = base_rate_log_loss(test_entries)
+    ll_model = log_loss(test_entries)
     return {
         "n_test": len(test_entries), "n_fit": len(fit_entries),
+        "base_rate": round(base, 4), "base_log_loss": round(ll_base, 4),
+        # Positive: the model knows something the base rate does not.
+        "skill_vs_base": round(ll_base - ll_model, 4),
         "slope_on_test": round(a_test, 3), "intercept_on_test": round(b_test, 3),
         "slope_fitted_oos": round(a_fit, 3), "intercept_fitted_oos": round(b_fit, 3),
         "raw": {"log_loss": round(log_loss(test_entries), 4), "ece": round(ece(test_entries), 4),
@@ -139,14 +152,16 @@ def main() -> None:
     config.REPORTS_DIR.mkdir(parents=True, exist_ok=True)
     stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     (config.REPORTS_DIR / f"goals_calibration_{stamp}.json").write_text(json.dumps(report, indent=2))
+    # export_web.py reads this into live.json as `goals_skill` (Performance page).
+    (config.REPORTS_DIR / "goals_calibration_latest.json").write_text(json.dumps(report, indent=2))
 
-    print(f"{'league':7} {'market':5} {'n':>5} {'slope':>6} {'raw range':>13} {'corrected':>13} {'LL raw':>8} {'LL corr':>8} {'gain':>8} {'ECE raw':>8} {'ECE corr':>8}")
+    print(f"{'league':7} {'market':5} {'n':>5} {'base%':>6} {'skill':>7} {'slope':>6} {'raw range':>13} {'corrected':>13} {'LL raw':>8} {'LL corr':>8} {'gain':>8}")
     rows = [(lg, mk, r[mk]) for lg, r in report["leagues"].items() for mk in ("OU25", "BTTS")]
     rows += [("POOLED", mk, report["pooled"][mk]) for mk in ("OU25", "BTTS")]
     for lg, mk, r in rows:
-        print(f"{lg:7} {mk:5} {r['n_test']:5} {r['slope_on_test']:6.2f} "
+        print(f"{lg:7} {mk:5} {r['n_test']:5} {r['base_rate']*100:6.1f} {r['skill_vs_base']:+7.4f} {r['slope_on_test']:6.2f} "
               f"{r['raw']['p_min']:.2f}–{r['raw']['p_max']:.2f}     {r['corrected_oos']['p_min']:.2f}–{r['corrected_oos']['p_max']:.2f}     "
-              f"{r['raw']['log_loss']:8.4f} {r['corrected_oos']['log_loss']:8.4f} {r['log_loss_gain']:+8.4f} {r['raw']['ece']:8.3f} {r['corrected_oos']['ece']:8.3f}")
+              f"{r['raw']['log_loss']:8.4f} {r['corrected_oos']['log_loss']:8.4f} {r['log_loss_gain']:+8.4f}")
 
 
 if __name__ == "__main__":

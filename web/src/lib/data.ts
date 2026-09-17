@@ -8,6 +8,7 @@
 import type {
   BettingBlock,
   ConfidenceBand,
+  GoalsSkill,
   Headline,
   LeagueCode,
   LeagueFilter,
@@ -59,6 +60,9 @@ export interface LiveData {
   /** Per-selection grades and H2H/form context for the Betting tab. Absent
    * on payloads exported before the betting layer existed. */
   betting?: BettingBlock;
+  /** Goals-model skill receipts for the Performance page; null until the
+   * diagnostic has run on the exporting machine. */
+  goals_skill?: GoalsSkill | null;
 }
 
 export const LEAGUE_CODES: LeagueCode[] = ["EPL", "LAL", "SEA", "BUN", "MLS"];
@@ -93,4 +97,23 @@ export function utcDayLabel(iso: string): string {
     month: "long",
     timeZone: "UTC",
   });
+}
+
+export interface MarketTotal {
+  /** Bookmaker consensus probability, %, margin removed. */
+  mp: number;
+  books: number | null;
+  snap: string | null;
+}
+
+/** Bookmaker consensus for Over 2.5 and BTTS on one fixture, from the
+ * betting block (already gated per viewer). The match page leads with these
+ * because the goals model has no validated skill on totals. */
+export function marketTotals(live: LiveData, id: number): { over25: MarketTotal | null; btts: MarketTotal | null } {
+  const rows = live.betting?.rows ?? [];
+  const pick = (market: string, sel: string): MarketTotal | null => {
+    const r = rows.find((x) => x.id === id && x.market === market && x.sel === sel);
+    return r && r.mp !== null ? { mp: r.mp, books: r.books, snap: r.snap } : null;
+  };
+  return { over25: pick("OU25", "over"), btts: pick("BTTS", "yes") };
 }

@@ -70,6 +70,9 @@ run betting         $PY src/betting/advisor.py
 # gate. Reads only settled rows, so once a day is plenty.
 if [[ "$(date -u +%H)" == "06" ]]; then
   run backtest_edges $PY src/betting/backtest_edges.py
+  # Goals-model skill on totals/BTTS vs the base rate (held-out season):
+  # the receipts behind the goals no-bet zone and the Performance page.
+  run goals_calibration $PY src/goals_calibration.py > /dev/null
 fi
 run export_web      $PY src/export_web.py
 run kv_push bash -c 'cd web && npx wrangler kv key put live --path src/data/live.json --binding LIVE_KV --remote 2>&1 | grep -v -E "Metrics|^\s*$" | grep -i -E "error|fail|Writing"'

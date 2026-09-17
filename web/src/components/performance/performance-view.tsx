@@ -14,9 +14,9 @@ export function PerformanceView({ live }: { live: LiveData }) {
   const [tab, setTab] = useState<Tab>("Record");
 
   return (
-    <div className="flex w-full flex-col gap-[14px] p-3 sm:p-5">
-      <div className="flex flex-wrap items-baseline gap-x-4 gap-y-2 rounded-[10px] border border-[var(--oasis-border)] bg-[var(--oasis-surface)] p-4">
-        <span className="text-[18px] font-extrabold leading-none tracking-[-0.02em] sm:text-[20px]">Performance record</span>
+    <div className="flex w-full flex-col gap-6 p-4 sm:p-6">
+      <div className="flex flex-wrap items-baseline gap-x-4 gap-y-2 border-b border-[var(--oasis-border)] pb-4">
+        <h1 className="text-title font-extrabold">Performance record</h1>
         <span className="font-mono text-[11.5px] font-medium text-[var(--oasis-text-muted)]">
           {live.live_record.settled > 0 ? (
             <>
@@ -214,9 +214,63 @@ function RecordView({ live }: { live: LiveData }) {
         </div>
       </div>
 
+      {live.goals_skill && <GoalsSkillCard gs={live.goals_skill} />}
+
       <div className="rounded-[10px] border border-[var(--oasis-border)] bg-[var(--oasis-surface)] p-4">
         <PerformanceLedger live={live} />
       </div>
     </>
+  );
+}
+
+/** The receipts for not forecasting totals: goals-model log loss against a
+ * constant base rate on the held-out season, per league. Same discipline
+ * as the 1X2 record -- the number is shown whether it flatters or not. */
+function GoalsSkillCard({ gs }: { gs: NonNullable<LiveData["goals_skill"]> }) {
+  const rows: { lg: string; market: "OU25" | "BTTS"; cell: NonNullable<typeof gs.pooled.OU25> }[] = [];
+  for (const lg of [...LEAGUE_CODES.filter((c) => gs.leagues[c]), "POOLED"]) {
+    const src = lg === "POOLED" ? gs.pooled : gs.leagues[lg];
+    for (const market of ["OU25", "BTTS"] as const) {
+      const cell = src?.[market];
+      if (cell) rows.push({ lg, market, cell });
+    }
+  }
+  const pooled = gs.pooled.OU25;
+  return (
+    <div className="flex flex-col gap-[10px] rounded-[10px] border border-[var(--oasis-border)] bg-[var(--oasis-surface)] p-4">
+      <div className="font-mono text-[10px] font-semibold tracking-[0.1em] text-[var(--oasis-text-dim)]">
+        GOALS MARKETS — MODEL vs BASE RATE, HELD-OUT SEASON
+      </div>
+      <p className="text-[12.5px] leading-[1.6] text-[var(--oasis-text-muted)]">
+        A constant probability equal to the outcome frequency scores the &ldquo;base&rdquo; log loss. Skill is how
+        much lower the model gets — {pooled ? `${(pooled.skill).toFixed(3)} nats pooled on Over 2.5` : "small"}, and
+        below zero in several league-market cells. That is why match pages show the bookmaker consensus for Over 2.5
+        and BTTS, and why the Betting tab grades those markets PASS. This table updates as the model changes.
+      </p>
+      <div className="-mx-1 overflow-x-auto px-1"><div className="min-w-[620px]">
+        <div className="flex border-b border-[var(--oasis-border)] px-1 py-[8px] font-mono text-[10px] font-semibold tracking-[0.08em] text-[var(--oasis-text-dim)]">
+          <span className="w-[80px]">LEAGUE</span><span className="w-[64px]">MARKET</span><span className="w-[56px] text-right">N</span>
+          <span className="w-[72px] text-right">BASE</span><span className="w-[84px] text-right">LL BASE</span><span className="w-[84px] text-right">LL MODEL</span>
+          <span className="w-[84px] text-right">SKILL</span><span className="flex-1 text-right">MODEL RANGE</span>
+        </div>
+        {rows.map(({ lg, market, cell }) => (
+          <div key={`${lg}-${market}`} className={`flex border-b border-[var(--oasis-border-row)] px-1 py-[7px] font-mono text-[12px] font-medium last:border-b-0 ${lg === "POOLED" ? "font-bold" : ""}`}>
+            <span className="w-[80px] text-[var(--oasis-text-muted)]">{lg === "POOLED" ? "All" : LEAGUE_NAMES[lg as keyof typeof LEAGUE_NAMES] ?? lg}</span>
+            <span className="w-[64px]">{market === "OU25" ? "O 2.5" : "BTTS"}</span>
+            <span className="w-[56px] text-right text-[var(--oasis-text-muted)]">{cell.n}</span>
+            <span className="w-[72px] text-right text-[var(--oasis-text-muted)]">{Math.round(cell.base_rate * 100)}%</span>
+            <span className="w-[84px] text-right">{cell.ll_base.toFixed(4)}</span>
+            <span className="w-[84px] text-right">{cell.ll_model.toFixed(4)}</span>
+            <span className="w-[84px] text-right" style={{ color: cell.skill > 0.005 ? "var(--oasis-positive)" : cell.skill < 0 ? "var(--oasis-away)" : "var(--oasis-text-muted)" }}>
+              {cell.skill >= 0 ? "+" : ""}{cell.skill.toFixed(4)}
+            </span>
+            <span className="flex-1 text-right text-[var(--oasis-text-muted)]">{Math.round(cell.p_min * 100)}–{Math.round(cell.p_max * 100)}%</span>
+          </div>
+        ))}
+      </div></div>
+      <div className="font-mono text-[10.5px] text-[var(--oasis-text-faint)]">
+        Evaluation artifacts, 2025/26 test season untouched · computed {gs.generated_at.slice(0, 10)}
+      </div>
+    </div>
   );
 }
