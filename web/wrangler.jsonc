@@ -23,6 +23,9 @@
 	// Live pipeline data: the matchday chain uploads web/src/data/live.json
 	// to this namespace (key "live"); pages render from it per request, so
 	// data updates need a KV put, not a redeploy.
+	// Public bot handle for the t.me deep link. Secrets (TELEGRAM_BOT_TOKEN,
+	// TELEGRAM_WEBHOOK_SECRET, TELEGRAM_DISPATCH_SECRET) are `wrangler secret put`.
+	"vars": { "TELEGRAM_BOT_USERNAME": "realscoresapi_bot" },
 	"kv_namespaces": [
 		{ "binding": "LIVE_KV", "id": "bb39d63bc5c84af2bf8d1160ca738915" }
 	]

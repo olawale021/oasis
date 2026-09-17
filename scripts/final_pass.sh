@@ -12,5 +12,6 @@ N=$($PY src/final_stage.py --window-minutes 35 | tail -1)
 if [[ "${N:-0}" -gt 0 ]]; then
   $PY src/export_web.py > /dev/null
   ( cd web && npx wrangler kv key put live --path src/data/live.json --binding LIVE_KV --remote 2>&1 | grep -i -E "error|fail" ) || true
+  $PY src/telegram_dispatch.py || true
   echo "final pass: $N fixture(s) locked at final stage, site updated $(date -u +%H:%M) UTC"
 fi

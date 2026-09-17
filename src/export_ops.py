@@ -42,6 +42,7 @@ STEP_FILES = [
     ("lifecycle", "Lock & settle"),
     ("betting", "Betting ledger"),
     ("backtest_edges", "Betting backtest"),
+    ("telegram_dispatch", "Telegram alerts"),
 ]
 LOCK_WINDOW_MINUTES = 70  # must match scripts/matchday.sh --window-minutes
 LEDGER_ROWS = 60

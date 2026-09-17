@@ -1,5 +1,9 @@
 import { currentUser } from "@clerk/nextjs/server";
 import Link from "next/link";
+import { LEAGUE_NAMES } from "@/lib/data";
+import { tgEnv } from "@/lib/telegram/env";
+import { signLinkToken } from "@/lib/telegram/link";
+import type { TelegramRecord } from "@/lib/telegram/store";
 import { getViewer } from "@/lib/viewer";
 
 export const dynamic = "force-dynamic";
@@ -16,9 +20,16 @@ function Block({ label, children }: { label: string; children: React.ReactNode }
 }
 
 export default async function AccountPage() {
-  const [viewer, user] = await Promise.all([getViewer(), currentUser()]);
+  const [viewer, user, tg] = await Promise.all([getViewer(), currentUser(), tgEnv()]);
   const email = user?.primaryEmailAddress?.emailAddress ?? "—";
   const premium = viewer.tier === "premium";
+  // Telegram: linked record lives in Clerk private metadata; the connect
+  // link is a signed, 15-minute deep link into the bot (see lib/telegram).
+  const telegram = (user?.privateMetadata as { telegram?: TelegramRecord } | undefined)?.telegram ?? null;
+  const connectUrl =
+    !telegram && tg.botUsername && tg.token && user
+      ? `https://t.me/${tg.botUsername}?start=${await signLinkToken(user.id, tg.token)}`
+      : null;
 
   return (
     <div className="mx-auto flex w-full max-w-[760px] flex-col gap-6 p-4 pb-12 sm:p-6">
@@ -64,8 +75,43 @@ export default async function AccountPage() {
         </div>
       </Block>
 
-      <Block label="Alerts">
-        <div className="text-[var(--oasis-text-dim)]">Telegram alerts and alert preferences arrive with the Telegram phase.</div>
+      <Block label="Telegram">
+        {telegram ? (
+          <>
+            <div>
+              <span className="text-[var(--oasis-text-muted)]">Connected</span>
+              {telegram.username ? <> as <span className="font-mono">@{telegram.username}</span></> : null}
+              <span className="text-[var(--oasis-text-muted)]"> · since {telegram.linked_at.slice(0, 10)}</span>
+            </div>
+            <div className="font-mono text-meta text-[var(--oasis-text-dim)]">
+              digest {telegram.prefs.digest ? "on" : "off"} · final forecasts {telegram.prefs.final ? "on" : "off"} · results{" "}
+              {telegram.prefs.results ? "on" : "off"} · high confidence {telegram.prefs.high_conf ? "on" : "off"} · betting grades{" "}
+              {telegram.prefs.betting ? "on" : "off"}
+              <br />
+              leagues: {telegram.prefs.leagues.map((l) => LEAGUE_NAMES[l]).join(", ") || "none"}
+            </div>
+            <div className="text-[var(--oasis-text-muted)]">
+              Change what you receive with <span className="font-mono">/alerts</span> in Telegram; disconnect with{" "}
+              <span className="font-mono">/stop</span>.
+            </div>
+          </>
+        ) : connectUrl ? (
+          <>
+            <div className="text-[var(--oasis-text-muted)]">
+              A daily digest at 08:00 UTC, final forecasts when lineups are confirmed, and results as they settle.
+              {premium ? " Betting grades can be switched on in the bot after an 18+ confirmation." : " Betting grades are part of lifetime access."}
+            </div>
+            <a
+              href={connectUrl}
+              className="rs-cta inline-block self-start rounded-[7px] bg-[var(--oasis-home)] px-[13px] py-[7px] text-ui font-bold text-[var(--oasis-home-ink)]"
+            >
+              Connect Telegram
+            </a>
+            <div className="font-mono text-meta text-[var(--oasis-text-dim)]">Opens the bot; the link is valid for 15 minutes.</div>
+          </>
+        ) : (
+          <div className="text-[var(--oasis-text-dim)]">Telegram connection opens shortly.</div>
+        )}
       </Block>
     </div>
   );

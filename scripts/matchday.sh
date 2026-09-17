@@ -76,3 +76,6 @@ if [[ "$(date -u +%H)" == "06" ]]; then
 fi
 run export_web      $PY src/export_web.py
 run kv_push bash -c 'cd web && npx wrangler kv key put live --path src/data/live.json --binding LIVE_KV --remote 2>&1 | grep -v -E "Metrics|^\s*$" | grep -i -E "error|fail|Writing"'
+# Telegram alerts: tell the Worker what this run locked / finalised / settled
+# (and, at 08 UTC, that it's digest time). Never fails the chain.
+run telegram_dispatch $PY src/telegram_dispatch.py

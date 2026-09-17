@@ -593,9 +593,9 @@ export function HomeConsole({ live, tier }: { live: LiveData; tier: Tier }) {
           <div className="font-mono text-[11px] font-medium text-[var(--oasis-text-dim)]">
             /today · /performance · /alerts
           </div>
-          <div className="rounded-[7px] border border-[var(--oasis-border-strong)] py-2 text-center text-[12px] font-bold">
+          <Link href="/account" className="rounded-[7px] border border-[var(--oasis-border-strong)] py-2 text-center text-[12px] font-bold hover:border-[var(--oasis-home)]">
             Connect account
-          </div>
+          </Link>
         </div>
         )}
 
