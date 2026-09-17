@@ -251,3 +251,76 @@ SELECT lp.* FROM locked_predictions lp
 WHERE lp.stage = CASE
     WHEN EXISTS (SELECT 1 FROM locked_predictions x WHERE x.fixture_id = lp.fixture_id AND x.stage = 'final') THEN 'final'
     ELSE 'initial' END;
+
+-- ---------------------------------------------------------------------------
+-- Betting layer (Betting PRD 22). Derived from odds_snapshots and
+-- locked_predictions; never an input to the prediction models.
+-- ---------------------------------------------------------------------------
+
+-- Per (fixture, market, selection, snapshot window): the bookmaker
+-- consensus. A pure function of odds_snapshots, so it is rebuilt
+-- idempotently and never updated once written (windows are append-only).
+CREATE TABLE IF NOT EXISTS market_consensus (
+    fixture_id       INTEGER NOT NULL REFERENCES fixtures(fixture_id),
+    market           TEXT NOT NULL,            -- 1X2 | OU25 | BTTS
+    selection        TEXT NOT NULL,            -- home|draw|away, over|under, yes|no
+    snapshot         TEXT NOT NULL,            -- odds_snapshots.snapshot window
+    consensus_prob   REAL NOT NULL,            -- median margin-removed prob, [0,1]
+    median_odds      REAL NOT NULL,
+    best_odds        REAL NOT NULL,
+    best_bookmaker   TEXT,
+    bookmaker_count  INTEGER NOT NULL,         -- distinct bookmakers quoting the market
+    fetched_at       TEXT NOT NULL,            -- newest odds row used: the point-in-time stamp
+    created_at       TEXT NOT NULL,
+    PRIMARY KEY (fixture_id, market, selection, snapshot)
+);
+
+-- One row per (locked prediction, market, selection), PASS rows included:
+-- the backtest needs to know what happened to the bets we did NOT
+-- recommend (PRD 18/19). Probabilities in [0,1]; edge = model - market in
+-- the same units (multiply by 100 for percentage points).
+CREATE TABLE IF NOT EXISTS betting_recommendations (
+    recommendation_id  INTEGER PRIMARY KEY AUTOINCREMENT,
+    fixture_id         INTEGER NOT NULL REFERENCES fixtures(fixture_id),
+    stage              TEXT NOT NULL,          -- locked_predictions.stage graded from
+    league_code        TEXT NOT NULL,
+    kickoff_utc        TEXT NOT NULL,
+    locked_at          TEXT NOT NULL,          -- as-of instant for the market lookup
+    market             TEXT NOT NULL,
+    selection          TEXT NOT NULL,
+    model_version      TEXT NOT NULL,
+    goals_version      TEXT,
+    model_prob         REAL NOT NULL,
+    market_prob        REAL,                   -- NULL: no odds archived before lock
+    market_snapshot    TEXT,
+    bookmaker_count    INTEGER,
+    edge               REAL,
+    best_odds          REAL,
+    expected_value     REAL,                   -- model_prob * best_odds - 1
+    confidence         TEXT,
+    level              TEXT NOT NULL,          -- PASS | WATCH | VALUE | STRONG_VALUE
+    reasons_json       TEXT NOT NULL,          -- structured; the card explains from this
+    thresholds_version TEXT NOT NULL,          -- rulebook that graded it (re-gradeable)
+    generated_at       TEXT NOT NULL,
+    UNIQUE (fixture_id, stage, market, selection)
+);
+
+CREATE TABLE IF NOT EXISTS betting_results (
+    recommendation_id  INTEGER PRIMARY KEY REFERENCES betting_recommendations(recommendation_id),
+    result_home        INTEGER NOT NULL,
+    result_away        INTEGER NOT NULL,
+    won                INTEGER NOT NULL,
+    profit_1u          REAL,                   -- at best_odds; NULL without odds
+    closing_odds       REAL,                   -- consensus median odds, closing window
+    closing_prob       REAL,
+    clv                REAL,                   -- best_odds / closing_odds - 1
+    settled_at         TEXT NOT NULL
+);
+
+-- Mirror of locked_effective for the betting ledger: the final-stage grade
+-- when one exists, else the initial. Performance reporting reads this.
+CREATE VIEW IF NOT EXISTS betting_effective AS
+SELECT br.* FROM betting_recommendations br
+WHERE br.stage = CASE
+    WHEN EXISTS (SELECT 1 FROM betting_recommendations x WHERE x.fixture_id = br.fixture_id AND x.stage = 'final') THEN 'final'
+    ELSE 'initial' END;

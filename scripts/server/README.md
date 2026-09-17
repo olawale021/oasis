@@ -38,7 +38,8 @@ back if you want to keep its locked/settled ledger.
 
 | When (UTC) | What |
 |---|---|
-| every hour :00 | `scripts/matchday.sh` -- odds, fixtures, predictions, initial lock (70 min), settle, export, KV |
+| every hour :00 | `scripts/matchday.sh` -- odds, fixtures, predictions, initial lock (70 min), settle, betting ledger, export, KV |
+| every hour :30 | `src/ingest_odds.py --horizon-days 1` -- closing-line odds pass, so on-the-hour kickoffs get a `closing` snapshot (CLV) |
 | :05, :15 ... :55 | `scripts/final_pass.sh` -- confirmed lineups inside 35 min -> final-stage lock -> re-export |
 | 02:30 | `scripts/server/backup-db.sh` -- SQLite snapshot to data/backups (keeps 14) |
 | 03:00, 15:00 | (inside matchday.sh) all-competition fixtures |

@@ -80,7 +80,13 @@ run_as "chmod +x '${APP_DIR}/scripts/matchday.sh'"
 
 log "Hourly cron for ${APP_USER}"
 CRON_LINE="0 * * * * cd ${APP_DIR} && ./scripts/matchday.sh >> data/status/matchday.log 2>&1"
-run_as "( echo 'PATH=/usr/local/bin:/usr/bin:/bin'; echo '${CRON_LINE}' ) | crontab -"
+# Closing-line pass at :30. The closing window is the final 45 minutes before
+# kickoff, and kickoffs sit on the hour or half hour -- with only the :00 run,
+# an on-the-hour kickoff never gets a closing snapshot, and CLV is then
+# unmeasurable for most fixtures. Cheap: windows already archived are skipped
+# without an API call.
+ODDS_LINE="30 * * * * cd ${APP_DIR} && .venv/bin/python src/ingest_odds.py --horizon-days 1 >> data/status/ingest_odds_30.log 2>&1"
+run_as "( echo 'PATH=/usr/local/bin:/usr/bin:/bin'; echo '${CRON_LINE}'; echo '${ODDS_LINE}' ) | crontab -"
 run_as 'crontab -l'
 
 cat <<MSG

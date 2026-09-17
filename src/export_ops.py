@@ -40,6 +40,7 @@ STEP_FILES = [
     ("ingest_lineups", "Lineups"),
     ("predict", "Predictions"),
     ("lifecycle", "Lock & settle"),
+    ("betting", "Betting ledger"),
 ]
 LOCK_WINDOW_MINUTES = 70  # must match scripts/matchday.sh --window-minutes
 LEDGER_ROWS = 60

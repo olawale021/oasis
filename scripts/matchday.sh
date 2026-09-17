@@ -62,5 +62,9 @@ fi
 run predict         $PY src/predict.py --horizon-days 8 > /dev/null
 run lock            $PY src/lifecycle.py lock --window-minutes 70
 run settle          $PY src/lifecycle.py settle
+# Betting ledger (Betting PRD 14): consensus per odds window, one graded
+# row per locked prediction x market x selection (PASS included), CLV on
+# settlement. Reads odds as of locked_at, so ordering after lock matters.
+run betting         $PY src/betting/advisor.py
 run export_web      $PY src/export_web.py
 run kv_push bash -c 'cd web && npx wrangler kv key put live --path src/data/live.json --binding LIVE_KV --remote 2>&1 | grep -v -E "Metrics|^\s*$" | grep -i -E "error|fail|Writing"'
