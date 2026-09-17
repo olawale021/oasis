@@ -6,6 +6,7 @@
 // lib/live-server.ts and pass it (or slices of it) down as props; the JSON
 // bundled at build time is only the dev/cold-start fallback.
 import type {
+  BettingBlock,
   ConfidenceBand,
   Headline,
   LeagueCode,
@@ -55,6 +56,9 @@ export interface LiveData {
   /** Free-tier taster, pinned per UTC day by the matchday chain:
    * {"2026-09-12": [fixtureId, fixtureId]}. Only today's entry is used. */
   taster?: Record<string, number[]>;
+  /** Per-selection grades and H2H/form context for the Betting tab. Absent
+   * on payloads exported before the betting layer existed. */
+  betting?: BettingBlock;
 }
 
 export const LEAGUE_CODES: LeagueCode[] = ["EPL", "LAL", "SEA", "BUN", "MLS"];

@@ -13,6 +13,7 @@ import type { Tier } from "@/lib/viewer";
 const NAV_LINKS = [
   { label: "Today", href: "/", match: (p: string) => p === "/" },
   { label: "Leagues", href: "/league/EPL", match: (p: string) => p.startsWith("/league") },
+  { label: "Betting", href: "/betting", match: (p: string) => p.startsWith("/betting") },
   { label: "Performance", href: "/performance", match: (p: string) => p.startsWith("/performance") },
   { label: "Method", href: "/method", match: (p: string) => p.startsWith("/method") },
 ];
@@ -20,6 +21,7 @@ const NAV_LINKS = [
 const ICON = {
   today: <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="3" width="12" height="11" rx="2" /><path d="M2 7h12M5.5 1.5v3M10.5 1.5v3" /></svg>,
   leagues: <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M4 2h8v3a4 4 0 0 1-8 0V2zM12 3h2v1.5a2.5 2.5 0 0 1-2 2.45M4 3H2v1.5a2.5 2.5 0 0 0 2 2.45M8 9v3M5.5 14h5" /></svg>,
+  betting: <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="8" cy="8" r="6" /><circle cx="8" cy="8" r="2.5" /><path d="M8 2v2M8 12v2M2 8h2M12 8h2" /></svg>,
   performance: <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M2 13h12M3.5 10.5l3-3 2.5 2.5 4-4.5" /><path d="M10.5 5.5H13V8" /></svg>,
   method: <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M3 2.5h10v11H3z" /><path d="M5.5 5.5h5M5.5 8h5M5.5 10.5h3" /></svg>,
   pricing: <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M2 8.5V3.5A1.5 1.5 0 0 1 3.5 2h5L14 7.5 8.5 13 2 8.5z" /><circle cx="5.5" cy="5.5" r="1" /></svg>,
@@ -28,6 +30,7 @@ const ICON = {
 const MENU = [
   { label: "Today", href: "/", hint: "settled results and the upcoming board", icon: ICON.today, match: (p: string) => p === "/" },
   { label: "Leagues", href: "/league/EPL", hint: "fixtures and standings by league", icon: ICON.leagues, match: (p: string) => p.startsWith("/league") },
+  { label: "Betting", href: "/betting", hint: "most likely and best value, by market", icon: ICON.betting, match: (p: string) => p.startsWith("/betting") },
   { label: "Performance", href: "/performance", hint: "the full locked record and backtests", icon: ICON.performance, match: (p: string) => p.startsWith("/performance") },
   { label: "Method", href: "/method", hint: "how forecasts are built and scored", icon: ICON.method, match: (p: string) => p.startsWith("/method") },
   { label: "Pricing", href: "/pricing", hint: "founding-member lifetime access", icon: ICON.pricing, match: (p: string) => p.startsWith("/pricing") },

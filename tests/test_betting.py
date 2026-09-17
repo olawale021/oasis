@@ -235,3 +235,55 @@ class Context(unittest.TestCase):
         self.assertEqual(h["matches_considered"], 0)
         self.assertIsNone(h["btts_rate"])
         self.assertIsNone(h["average_goals"])
+
+
+class Export(unittest.TestCase):
+    """live.json betting block: ledger rows win over previews, previews use
+    the newest consensus, context rides along per fixture."""
+
+    def setUp(self):
+        from betting.export import build_betting
+        self.build = build_betting
+        self.conn = fresh_db()
+        add_odds(self.conn, "24h", T_24H, {
+            "A": book(1.80, 3.60, 4.50, 1.70, 2.10, 1.75, 2.00),
+            "B": book(1.85, 3.50, 4.40, 1.72, 2.05, 1.72, 2.05),
+            "C": book(1.83, 3.55, 4.60, 1.68, 2.15, 1.78, 1.98),
+        })
+        build_consensus(self.conn, NOW)
+        self.pred = {"predictions": [{
+            "fixture_id": FIX, "home_team_id": 1, "away_team_id": 2,
+            "p_home": 60.0, "p_draw": 22.0, "p_away": 18.0, "over_2_5": 64.0, "btts": 55.0,
+        }]}
+
+    def test_preview_rows_graded_from_current_consensus(self):
+        b = self.build(self.conn, self.pred, NOW)
+        self.assertEqual(b["thresholds_version"], "v0-provisional")
+        rows = {(r["market"], r["sel"]): r for r in b["rows"]}
+        self.assertEqual(len(rows), 7)
+        home = rows[("1X2", "home")]
+        self.assertFalse(home["locked"])
+        self.assertEqual(home["p"], 60.0)
+        self.assertEqual(home["odds"], 1.85)
+        self.assertEqual(home["book"], "B")
+        self.assertEqual(home["snap"], "24h")
+        self.assertAlmostEqual(home["edge"], round(60.0 - home["mp"], 1), places=1)
+        self.assertIn(home["level"], ("PASS", "WATCH"))
+        self.assertEqual(b["context"][str(FIX)]["h2h"], None)  # no context rows built
+
+    def test_ledger_rows_replace_previews_once_locked(self):
+        add_lock(self.conn, p_home=70.0)           # ledger will say 70, prediction says 60
+        grade_locked(self.conn, NOW)
+        b = self.build(self.conn, self.pred, NOW)
+        home = next(r for r in b["rows"] if r["market"] == "1X2" and r["sel"] == "home")
+        self.assertTrue(home["locked"])
+        self.assertEqual(home["p"], 70.0)
+        self.assertTrue(home["reasons"][0]["code"])
+
+    def test_no_odds_gives_null_market_and_watch(self):
+        self.conn.execute("DELETE FROM market_consensus")
+        b = self.build(self.conn, self.pred, NOW)
+        home = next(r for r in b["rows"] if r["market"] == "1X2" and r["sel"] == "home")
+        self.assertIsNone(home["mp"]); self.assertIsNone(home["edge"]); self.assertIsNone(home["odds"])
+        self.assertEqual(home["level"], "WATCH")
+        self.assertEqual(home["reasons"][0]["code"], "no_odds")

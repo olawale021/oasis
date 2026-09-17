@@ -225,3 +225,70 @@ export interface Experiment {
   metric: string;
   rows: ExperimentRow[];
 }
+
+// --- Betting tab (Betting PRD 4, 5, 16) -----------------------------------
+
+export type BettingMarket = "1X2" | "OU25" | "BTTS";
+export type BettingLevel = "PASS" | "WATCH" | "VALUE" | "STRONG_VALUE";
+
+export interface BettingReason {
+  code: string;
+  detail: string;
+}
+
+/** One selection of one market on one upcoming fixture. Percentages, not
+ * fractions: p/mp/edge/ev are already x100. `locked` rows come from the
+ * ledger (graded as of lock, reproducible); the rest are previews graded
+ * now with the same rulebook. */
+export interface BettingRow {
+  id: number;
+  market: BettingMarket;
+  sel: string;
+  p: number;
+  mp: number | null;
+  edge: number | null;
+  odds: number | null;
+  book: string | null;
+  ev: number | null;
+  books: number | null;
+  snap: string | null;
+  level: BettingLevel;
+  reasons: BettingReason[];
+  locked: boolean;
+}
+
+export interface TeamTrend {
+  n: number;
+  btts: number;
+  over25: number;
+  gf: number;
+  ga: number;
+}
+
+export interface H2HSummary {
+  n: number;
+  hw: number;
+  d: number;
+  aw: number;
+  hg: number;
+  ag: number;
+  btts: number;
+  over25: number;
+  avg: number | null;
+  last: string | null;
+}
+
+export interface BettingContext {
+  h2h: H2HSummary | null;
+  home: TeamTrend | null;
+  away: TeamTrend | null;
+}
+
+export interface BettingBlock {
+  thresholds_version: string;
+  markets: Record<BettingMarket, string[]>;
+  generated_at: string;
+  rows: BettingRow[];
+  /** Keyed by fixture id as a string (JSON object keys). */
+  context: Record<string, BettingContext>;
+}

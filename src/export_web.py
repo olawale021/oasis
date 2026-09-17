@@ -16,6 +16,7 @@ from datetime import datetime, timezone
 import backtest_common
 import config
 import db
+from betting.export import build_betting
 import goals_model
 import leagues
 import matches as matches_module
@@ -890,6 +891,9 @@ def main() -> None:
         "bookmakers": build_bookmakers(conn),
         "experiments": build_experiments(),
         "factor_glossary": FACTOR_GLOSSARY,
+        # Betting PRD 4/16: per-selection grades and H2H/form context. Locked
+        # fixtures show their ledger rows; the rest are previews graded now.
+        "betting": build_betting(conn, predictions),
     }
 
     WEB_DATA_DIR.mkdir(parents=True, exist_ok=True)

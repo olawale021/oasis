@@ -67,8 +67,17 @@ export function canSee(viewer: Viewer, matchId: number, taster: Set<number>): bo
 export function redactLive(live: LiveData, viewer: Viewer): LiveData {
   if (viewer.tier === "premium") return live;
   const taster = tasterIds(live);
+  const visible = (id: number) => canSee(viewer, id, taster);
   return {
     ...live,
-    matches: live.matches.map((m) => (canSee(viewer, m.id, taster) ? m : redactMatch(m))),
+    matches: live.matches.map((m) => (visible(m.id) ? m : redactMatch(m))),
+    // Betting rows are upcoming predictions by another name: same rule,
+    // same taster, and the context goes with them so nothing leaks a
+    // fixture's form to a viewer who may not see its forecast.
+    betting: live.betting && {
+      ...live.betting,
+      rows: live.betting.rows.filter((r) => visible(r.id)),
+      context: Object.fromEntries(Object.entries(live.betting.context).filter(([id]) => visible(Number(id)))),
+    },
   };
 }
