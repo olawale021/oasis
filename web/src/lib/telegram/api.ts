@@ -14,6 +14,8 @@ export interface Sender {
   send(msg: Outgoing): Promise<void>;
   answerCallback(id: string, text?: string): Promise<void>;
   editMarkup(chat_id: number, message_id: number, reply_markup: unknown): Promise<void>;
+  /** Replace a message's text and buttons: paging and pickers stay in one bubble. */
+  editText(chat_id: number, message_id: number, text: string, reply_markup?: unknown): Promise<void>;
   readonly sent: Outgoing[];
   readonly dry: boolean;
 }
@@ -68,6 +70,11 @@ export function makeSender(token: string | null): Sender {
     },
     async editMarkup(chat_id, message_id, reply_markup) {
       await call("editMessageReplyMarkup", { chat_id, message_id, reply_markup });
+    },
+    async editText(chat_id, message_id, text, reply_markup) {
+      const t = chunkText(text)[0];
+      sent.push({ chat_id, text: t, reply_markup });
+      await call("editMessageText", { chat_id, message_id, text: t, parse_mode: "HTML", disable_web_page_preview: true, reply_markup });
     },
   };
 }

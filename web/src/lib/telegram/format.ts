@@ -42,12 +42,28 @@ function byLeague<T extends { lg: LeagueCode }>(rows: T[], line: (r: T) => strin
   return groups.join("\n\n");
 }
 
+export interface Page {
+  offset?: number;
+  limit?: number;
+}
+export interface View {
+  text: string;
+  hasMore: boolean;
+  total: number;
+}
+
+const PAGE = 12;
+
 /** Upcoming fixtures on the payload's UTC day; if none, the next day that
  * has any. `leagues` filters; `league` is a single explicit ask. */
 export function todayMessage(live: LiveData, leagues: LeagueCode[], league?: LeagueCode): string {
+  return todayView(live, leagues, league).text;
+}
+
+export function todayView(live: LiveData, leagues: LeagueCode[], league?: LeagueCode, page: Page = {}): View {
   const wanted = (m: MatchRecord) => (league ? m.lg === league : leagues.includes(m.lg));
   const upcoming = live.matches.filter((m) => wanted(m) && m.kickoffUtc >= live.generated_at.slice(0, 13)).sort((a, b) => a.kickoffUtc.localeCompare(b.kickoffUtc));
-  if (upcoming.length === 0) return `No upcoming fixtures${league ? ` in ${LEAGUE_NAMES[league]}` : ""} in the next week.\n\n${FOOTER}`;
+  if (upcoming.length === 0) return { text: `No upcoming fixtures${league ? ` in ${LEAGUE_NAMES[league]}` : ""} in the next week.\n\n${FOOTER}`, hasMore: false, total: 0 };
   const today = day(live.generated_at);
   let target = upcoming.filter((m) => day(m.kickoffUtc) === today);
   let title = "Today";
@@ -56,10 +72,18 @@ export function todayMessage(live: LiveData, leagues: LeagueCode[], league?: Lea
     target = upcoming.filter((m) => day(m.kickoffUtc) === next);
     title = dayLabel(next);
   }
-  const locked = target.filter((m) => m.gated).length;
+  const offset = page.offset ?? 0;
+  const limit = page.limit ?? PAGE;
+  const slice = target.slice(offset, offset + limit);
+  const locked = slice.filter((m) => m.gated).length;
   const lockedNote = locked ? `\n\n🔒 ${locked} locked — sign in for the daily taster, lifetime for all.` : "";
-  const legend = locked < target.length ? "<i>home · draw · away %, then the model's pick.</i>\n" : "";
-  return `<b>${title}</b> · ${target.length} ${target.length === 1 ? "match" : "matches"} · times UTC\n\n${byLeague(target.slice(0, 30), fixtureLine)}${lockedNote}\n\n${legend}${FOOTER}`;
+  const legend = locked < slice.length ? "<i>home · draw · away %, then the model's pick.</i>\n" : "";
+  const range = target.length > limit ? ` · ${offset + 1}–${offset + slice.length} of ${target.length}` : ` · ${target.length} ${target.length === 1 ? "match" : "matches"}`;
+  return {
+    text: `<b>${title}</b>${league ? ` · ${esc(LEAGUE_NAMES[league])}` : ""}${range} · times UTC\n\n${byLeague(slice, fixtureLine)}${lockedNote}\n\n${legend}${FOOTER}`,
+    hasMore: offset + slice.length < target.length,
+    total: target.length,
+  };
 }
 
 function resultLine(r: RecentResult): string {
@@ -73,18 +97,30 @@ function resultLine(r: RecentResult): string {
 }
 
 export function resultsMessage(live: LiveData, leagues: LeagueCode[], sinceDay?: string, league?: LeagueCode): string {
+  return resultsView(live, leagues, sinceDay, league).text;
+}
+
+/** Results paged by DAY (a day is the natural unit), newest first. */
+export function resultsView(live: LiveData, leagues: LeagueCode[], sinceDay?: string, league?: LeagueCode, page: Page = {}): View {
   const rows = live.recent_results
     .filter((r) => r.locked && r.locked.correct != null && (league ? r.lg === league : leagues.includes(r.lg)) && (!sinceDay || day(r.kickoffUtc) >= sinceDay))
     .sort((a, b) => b.kickoffUtc.localeCompare(a.kickoffUtc));
-  if (rows.length === 0) return "No settled forecasts in that window yet.";
+  if (rows.length === 0) return { text: `No settled forecasts${league ? ` in ${esc(LEAGUE_NAMES[league])}` : ""} in the last week.`, hasMore: false, total: 0 };
   const hits = rows.filter((r) => r.locked!.correct).length;
   const compared = rows.filter((r) => r.locked!.closer != null);
   const closer = compared.filter((r) => r.locked!.closer).length;
-  const days = [...new Set(rows.map((r) => day(r.kickoffUtc)))].slice(0, 3);
+  const allDays = [...new Set(rows.map((r) => day(r.kickoffUtc)))];
+  const offset = page.offset ?? 0;
+  const days = allDays.slice(offset, offset + (page.limit ?? 2));
   const sections = days.map((d) => `<b>${dayLabel(d)}</b>\n\n${byLeague(rows.filter((r) => day(r.kickoffUtc) === d), resultLine)}`);
-  const head = `<b>Results</b>${league ? ` · ${esc(LEAGUE_NAMES[league])}` : ""}\nTop pick right: <b>${hits} of ${rows.length}</b>${compared.length ? `\nCloser than the bookmakers: <b>${closer} of ${compared.length}</b>` : ""}`;
-  const more = rows.length > days.reduce((n, d) => n + rows.filter((r) => day(r.kickoffUtc) === d).length, 0) ? "\n\n<i>Older days on realscores.app/performance.</i>" : "";
-  return `${head}\n\n${sections.join("\n\n")}${more}\n\n<i>↑ = the model gave the real result more probability than the bookmakers did. /results EPL for one league.</i>`;
+  const head = offset === 0
+    ? `<b>Results · last 7 days</b>${league ? ` · ${esc(LEAGUE_NAMES[league])}` : ""}\nTop pick right: <b>${hits} of ${rows.length}</b>${compared.length ? `\nCloser than the bookmakers: <b>${closer} of ${compared.length}</b>` : ""}`
+    : `<b>Results</b>${league ? ` · ${esc(LEAGUE_NAMES[league])}` : ""} · earlier`;
+  return {
+    text: `${head}\n\n${sections.join("\n\n")}\n\n<i>↑ = the model gave the real result more probability than the bookmakers did.</i>`,
+    hasMore: offset + days.length < allDays.length,
+    total: rows.length,
+  };
 }
 
 export function performanceMessage(live: LiveData): string {
@@ -132,6 +168,11 @@ export interface BettingFilter {
  * Grouped by league, strongest edge first, capped, with the ways to
  * narrow it spelled out at the bottom. */
 export function bettingMessage(live: LiveData, rows: BettingRow[], filter: BettingFilter = {}): string | null {
+  const v = bettingView(live, rows, filter);
+  return v.total ? v.text : null;
+}
+
+export function bettingView(live: LiveData, rows: BettingRow[], filter: BettingFilter = {}, page: Page = {}): View {
   const byId = new Map(live.matches.map((m) => [m.id, m]));
   const confOk = (c: MatchRecord["conf"]) => !filter.minConf || c === "HIGH" || (filter.minConf === "MED" && c === "MED");
   const graded = rows
@@ -139,9 +180,10 @@ export function bettingMessage(live: LiveData, rows: BettingRow[], filter: Betti
     .filter((x): x is { r: BettingRow; m: MatchRecord } =>
       !!x.m && !x.m.gated && x.r.level !== "PASS" && (!filter.league || x.m.lg === filter.league) && confOk(x.m.conf))
     .sort((a, b) => (b.r.edge ?? -1) - (a.r.edge ?? -1));
-  if (graded.length === 0) return null;
-  const limit = filter.limit ?? 12;
-  const shown = graded.slice(0, limit);
+  if (graded.length === 0) return { text: `Nothing graded above PASS${filter.league || filter.minConf ? " for that filter" : ""} right now — the engine is passing, out loud.`, hasMore: false, total: 0 };
+  const offset = page.offset ?? 0;
+  const limit = filter.limit ?? page.limit ?? 8;
+  const shown = graded.slice(offset, offset + limit);
   const line = ({ r, m }: { r: BettingRow; m: MatchRecord }) => {
     const nums = r.mp === null
       ? `model ${r.p.toFixed(0)}% · no odds`
@@ -151,9 +193,12 @@ export function bettingMessage(live: LiveData, rows: BettingRow[], filter: Betti
     return `${utcClock(m.kickoffUtc)}  <b>${shortName(m.home)}</b> v <b>${shortName(m.away)}</b> — ${esc(selectionLabel(r, m))}\n        ${nums}\n        ${r.level}${r.locked ? "" : " (pre-lock)"}${conf} · ${esc(why)}`;
   };
   const title = `<b>Betting · graded disagreements</b>${filter.league ? ` · ${esc(LEAGUE_NAMES[filter.league])}` : ""}${filter.minConf ? ` · ${filter.minConf === "HIGH" ? "high" : "med+"} confidence` : ""}`;
-  const more = graded.length > shown.length ? `\n\n<i>${graded.length - shown.length} more not shown.</i>` : "";
-  const narrow = "<i>Narrow it: /betting EPL · /betting high · /betting LAL med</i>";
-  return `${title} · ${graded.length}\n\n${byLeague(shown.map((x) => ({ ...x, lg: x.m.lg })), line)}${more}\n\n${narrow}\n${BETTING_FOOTER}`;
+  const range = graded.length > limit ? ` · ${offset + 1}–${offset + shown.length} of ${graded.length}` : ` · ${graded.length}`;
+  return {
+    text: `${title}${range}\n\n${byLeague(shown.map((x) => ({ ...x, lg: x.m.lg })), line)}\n\n${BETTING_FOOTER}`,
+    hasMore: offset + shown.length < graded.length,
+    total: graded.length,
+  };
 }
 
 export function digestMessage(live: LiveData, prefs: TelegramPrefs): string {
@@ -174,12 +219,11 @@ export function digestMessage(live: LiveData, prefs: TelegramPrefs): string {
 }
 
 export const HELP = [
-  "<b>Commands</b>",
-  "/today [EPL|LAL|SEA|BUN|MLS] — upcoming forecasts",
-  "/results [league] — settled forecasts, last 7 days",
+  "Use the buttons at the bottom — or type:",
+  "/today — upcoming forecasts (tap a league to narrow)",
+  "/results — settled forecasts, last 7 days",
   "/performance — the live record",
-  "/betting [league] [high|med] — graded model-vs-market disagreements (lifetime, 18+)",
+  "/betting — graded model-vs-market disagreements (lifetime, 18+)",
   "/alerts — choose leagues and alert types",
-  "/account — your link and access",
-  "/stop — disconnect",
+  "/account — your link and access · /stop — disconnect",
 ].join("\n");
