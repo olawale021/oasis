@@ -8,7 +8,7 @@ import { redirect } from "next/navigation";
  * cookie, not an account flag: it has to work for anonymous viewers, and
  * it is a statement by the person at the browser, not a fact about the
  * account. One year, then asked again. */
-export const ADULT_COOKIE = "rs_adult";
+const ADULT_COOKIE = "rs_adult";
 
 export async function confirmAdultAction(): Promise<void> {
   (await cookies()).set(ADULT_COOKIE, "1", {
