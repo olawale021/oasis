@@ -100,6 +100,14 @@ class Grading(unittest.TestCase):
     def test_floor_is_exclusive(self):
         self.assertEqual(grade(0.5 + EDGE_FLOOR, 0.5, 0.1, 9, "1h")[0], "WATCH")
 
+    def test_goals_markets_are_a_no_bet_zone(self):
+        # A huge edge on totals is still PASS: the model has no validated skill there.
+        level, reasons = grade(0.53, 0.18, 1.27, 12, "1h", market="OU25")
+        self.assertEqual(level, "PASS")
+        self.assertEqual(reasons[0]["code"], "market_no_skill")
+        self.assertEqual(grade(0.53, 0.18, 1.27, 12, "1h", market="BTTS")[0], "PASS")
+        self.assertEqual(grade(0.53, 0.18, 1.27, 12, "1h", market="1X2")[0], "WATCH")
+
 
 class Settlement(unittest.TestCase):
     def test_selection_won(self):
@@ -146,7 +154,11 @@ class Ledger(unittest.TestCase):
         self.assertEqual(home["market_snapshot"], "24h")   # closing came after locked_at
         self.assertEqual(home["best_odds"], 1.85)
         self.assertAlmostEqual(home["edge"], 0.60 - home["market_prob"], places=6)
-        self.assertEqual(home["thresholds_version"], "v0-provisional")
+        self.assertEqual(home["thresholds_version"], "v0.1-provisional")
+        for (mk, _), r in rows.items():
+            if mk in ("OU25", "BTTS"):
+                self.assertEqual(r["level"], "PASS")
+                self.assertEqual(json.loads(r["reasons_json"])[0]["code"], "market_no_skill")
         self.assertIn(home["level"], ("PASS", "WATCH"))
         for r in rows.values():
             self.assertNotIn(r["level"], ("VALUE", "STRONG_VALUE"))
@@ -364,7 +376,7 @@ class Export(unittest.TestCase):
 
     def test_preview_rows_graded_from_current_consensus(self):
         b = self.build(self.conn, self.pred, NOW)
-        self.assertEqual(b["thresholds_version"], "v0-provisional")
+        self.assertEqual(b["thresholds_version"], "v0.1-provisional")
         rows = {(r["market"], r["sel"]): r for r in b["rows"]}
         self.assertEqual(len(rows), 7)
         home = rows[("1X2", "home")]
@@ -385,6 +397,13 @@ class Export(unittest.TestCase):
         self.assertTrue(home["locked"])
         self.assertEqual(home["p"], 70.0)
         self.assertTrue(home["reasons"][0]["code"])
+
+    def test_goals_rows_export_as_pass_with_reason(self):
+        b = self.build(self.conn, self.pred, NOW)
+        over = next(r for r in b["rows"] if r["market"] == "OU25" and r["sel"] == "over")
+        self.assertEqual(over["level"], "PASS")
+        self.assertEqual(over["reasons"][0]["code"], "market_no_skill")
+        self.assertIsNotNone(over["edge"])  # the numbers still show; the grade says why they do not count
 
     def test_no_odds_gives_null_market_and_watch(self):
         self.conn.execute("DELETE FROM market_consensus")

@@ -75,7 +75,7 @@ def _graded_row(fixture_id, stage, league_code, kickoff_utc, locked_at, hours, m
     e = edge_math.edge(p, market_prob) if mkt_row else None
     ev = edge_math.expected_value(p, best_odds) if mkt_row else None
     level, reasons = grade(p, market_prob, ev, mkt_row["bookmaker_count"] if mkt_row else None,
-                           mkt_row["snapshot"] if mkt_row else None)
+                           mkt_row["snapshot"] if mkt_row else None, market)
     return {
         "fixture_id": fixture_id, "stage": stage, "league_code": league_code, "kickoff_utc": kickoff_utc,
         "locked_at": locked_at, "hours_to_kickoff": round(hours, 2) if hours is not None else None,

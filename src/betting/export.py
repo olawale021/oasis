@@ -54,7 +54,7 @@ def _preview_rows(conn, prediction: dict, now_iso: str) -> list:
             r = mkt.get(sel) if mkt else None
             ev = edge_math.expected_value(p, r["best_odds"]) if r else None
             level, reasons = grade(p, r["consensus_prob"] if r else None, ev,
-                                   r["bookmaker_count"] if r else None, r["snapshot"] if r else None)
+                                   r["bookmaker_count"] if r else None, r["snapshot"] if r else None, market)
             rows.append(_row(prediction["fixture_id"], market, sel, p, r, level, reasons, False))
     return rows
 
