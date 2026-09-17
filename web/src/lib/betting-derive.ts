@@ -7,7 +7,7 @@ import type {
   BettingContext, BettingMarket, BettingRow, Confidence, LeagueCode, MatchRecord,
 } from "./types";
 
-export type Mode = "likely" | "value";
+export type Mode = "likely" | "edge";
 export type SortKey = "prob" | "edge" | "conf" | "kickoff" | "h2h";
 export type DateRange = "today" | "tomorrow" | "3d" | "7d";
 export type ConfFilter = "ALL" | "MED" | "HIGH";
@@ -47,6 +47,9 @@ export const MARKET_CHIPS: { key: string; label: string }[] = [
 
 const CONF_RANK: Record<Confidence, number> = { HIGH: 2, MED: 1, LOW: 0 };
 
+/** "edge" ranks by model-vs-market disagreement. It is deliberately not
+ * called value: a big edge is a candidate to investigate, and the first
+ * week of the ledger showed the largest edges losing hardest. */
 export function defaultsFor(mode: Mode): Filters {
   return mode === "likely"
     ? { market: "ALL", minP: 0, minEdge: 0, conf: "ALL", h2hMin: 0, leagues: [], date: "7d", showPass: true, sort: "prob" }

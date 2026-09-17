@@ -13,6 +13,7 @@ import {
 import type { BettingLevel } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import type { Tier } from "@/lib/viewer";
+import { IconCheck } from "@/components/icons";
 
 const LEVEL: Record<BettingLevel, { label: string; cls: string }> = {
   PASS:         { label: "PASS",   cls: "border-[var(--oasis-border-strong)] text-[var(--oasis-text-dim)]" },
@@ -56,19 +57,19 @@ export function BettingConsole({ live, tier }: { live: LiveData; tier: Tier }) {
   const block = live.betting;
 
   return (
-    <div className="mx-auto flex w-full max-w-[1280px] flex-col gap-[14px] p-3 sm:p-5">
+    <div className="mx-auto flex w-full max-w-[1280px] flex-col gap-5 p-4 sm:p-6">
       {/* Title + mode */}
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-3 rounded-[10px] border border-[var(--oasis-border)] bg-[var(--oasis-surface)] p-4">
-        <div className="min-w-0">
-          <h1 className="text-[19px] font-extrabold leading-none tracking-[-0.02em] sm:text-[21px]">Betting</h1>
-          <p className="mt-[6px] font-sans text-[12.5px] text-[var(--oasis-text-muted)]">
+      <div className="flex flex-wrap items-end gap-x-6 gap-y-3 border-b border-[var(--oasis-border)] pb-4">
+        <div className="min-w-0 max-w-[62ch]">
+          <h1 className="text-display font-extrabold">Betting</h1>
+          <p className="mt-2 font-sans text-body text-[var(--oasis-text-muted)]">
             {mode === "likely"
               ? "What the model thinks is most likely to happen. High probability is not the same as value."
-              : "Where the model disagrees most with the bookmakers. Disagreement is a candidate, not a tip."}
+              : "Where the model disagrees most with the bookmakers, in percentage points. A big edge is a reason to look closer, not a reason to bet — the market is usually right about it."}
           </p>
         </div>
         <div className="flex items-center gap-[6px] sm:ml-auto">
-          {(["likely", "value"] as Mode[]).map((m) => (
+          {(["likely", "edge"] as Mode[]).map((m) => (
             <button
               key={m}
               type="button"
@@ -80,7 +81,7 @@ export function BettingConsole({ live, tier }: { live: LiveData; tier: Tier }) {
                   : { color: "var(--oasis-text-muted)", border: "1px solid var(--oasis-border)" }
               }
             >
-              {m === "likely" ? "Most likely" : "Best value"}
+              {m === "likely" ? "Most likely" : "Biggest edge"}
             </button>
           ))}
         </div>
@@ -95,7 +96,7 @@ export function BettingConsole({ live, tier }: { live: LiveData; tier: Tier }) {
       </div>
 
       {tier !== "premium" && lockedFixtures > 0 && (
-        <div className="flex flex-col items-start gap-3 rounded-[9px] border border-[var(--oasis-home)] bg-[var(--oasis-surface)] p-3 sm:flex-row sm:items-center sm:gap-4 sm:px-[14px]">
+        <div className="flex flex-col items-start gap-3 border-l-2 border-[var(--oasis-home)] pl-4 sm:flex-row sm:items-center sm:gap-6">
           <div className="flex-1 text-[12.5px] leading-[1.6] text-[var(--oasis-text-muted)]">
             <span className="font-bold text-[var(--oasis-text)]">
               {lockedFixtures} upcoming {lockedFixtures === 1 ? "fixture is" : "fixtures are"} locked.
@@ -109,7 +110,7 @@ export function BettingConsole({ live, tier }: { live: LiveData; tier: Tier }) {
       )}
 
       {/* Filters */}
-      <div className="flex flex-col gap-3 rounded-[10px] border border-[var(--oasis-border)] bg-[var(--oasis-surface)] p-3 sm:p-4">
+      <div className="flex flex-col gap-3 border-b border-[var(--oasis-border)] pb-4">
         <div className="flex flex-wrap gap-[6px]">
           {MARKET_CHIPS.map((c) => (
             <button key={c.key} type="button" onClick={() => set("market", c.key)} className={chip(f.market === c.key)}>
@@ -158,7 +159,7 @@ export function BettingConsole({ live, tier }: { live: LiveData; tier: Tier }) {
             </select>
           </label>
           <button type="button" onClick={() => set("showPass", !f.showPass)} className={chip(f.showPass)}>
-            {f.showPass ? "Showing PASS ✓" : "Show PASS"}
+            {f.showPass ? <span className="flex items-center gap-[5px]">Showing PASS <IconCheck size={12} strokeWidth={2} /></span> : "Show PASS"}
           </button>
         </div>
         <div className="flex flex-wrap gap-[6px]">
@@ -187,7 +188,7 @@ export function BettingConsole({ live, tier }: { live: LiveData; tier: Tier }) {
       <div className="rounded-[10px] border border-[var(--oasis-border)] bg-[var(--oasis-surface)]">
         <div className="flex flex-wrap items-baseline gap-x-3 border-b border-[var(--oasis-border)] px-4 py-[10px]">
           <span className="font-sans text-[11px] font-semibold uppercase tracking-[0.07em] text-[var(--oasis-text-dim)]">
-            {mode === "likely" ? "Most likely" : "Best value"}
+            {mode === "likely" ? "Most likely" : "Biggest edge"}
           </span>
           <span className="font-mono text-[11px] text-[var(--oasis-text-muted)]">
             {shown.length} of {items.length} selections
