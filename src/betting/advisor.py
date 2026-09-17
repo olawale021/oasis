@@ -95,9 +95,12 @@ def settle(conn, now_iso: str) -> dict:
     rows = conn.execute(
         f"""
         SELECT br.recommendation_id, br.fixture_id, br.market, br.selection, br.best_odds,
-               f.home_goals, f.away_goals
+               mc.median_odds AS graded_median_odds, f.home_goals, f.away_goals
         FROM betting_recommendations br
         JOIN fixtures f ON f.fixture_id = br.fixture_id
+        LEFT JOIN market_consensus mc
+          ON mc.fixture_id = br.fixture_id AND mc.market = br.market
+         AND mc.selection = br.selection AND mc.snapshot = br.market_snapshot
         WHERE f.status_short IN ({", ".join("?" for _ in DECIDED_STATUSES)})
           AND f.home_goals IS NOT NULL AND f.away_goals IS NOT NULL
           AND NOT EXISTS (SELECT 1 FROM betting_results r WHERE r.recommendation_id = br.recommendation_id)
@@ -116,7 +119,10 @@ def settle(conn, now_iso: str) -> dict:
         close = (closing_cache[key] or {}).get(r["selection"])
         closing_odds = close["median_odds"] if close else None
         closing_prob = close["consensus_prob"] if close else None
-        clv = edge_math.clv(r["best_odds"], closing_odds) if r["best_odds"] and closing_odds else None
+        # Median at grade time vs median at close -- never best_odds, which
+        # is above the median by construction and would flatter every row.
+        graded = r["graded_median_odds"]
+        clv = edge_math.clv(graded, closing_odds) if graded and closing_odds else None
         conn.execute(
             """
             INSERT OR IGNORE INTO betting_results
@@ -132,6 +138,35 @@ def settle(conn, now_iso: str) -> dict:
             counts["with_clv"] += 1
     conn.commit()
     return counts
+
+
+def recompute_clv(conn, now_iso: str) -> dict:
+    """Re-derive clv for every settled row from stored consensus: median at
+    the graded snapshot vs closing median. Idempotent; used once to correct
+    rows settled while clv compared best_odds to the closing median."""
+    rows = conn.execute(
+        """
+        SELECT r.recommendation_id, mc.median_odds AS graded, cl.median_odds AS closing
+        FROM betting_results r
+        JOIN betting_recommendations br USING (recommendation_id)
+        LEFT JOIN market_consensus mc
+          ON mc.fixture_id = br.fixture_id AND mc.market = br.market
+         AND mc.selection = br.selection AND mc.snapshot = br.market_snapshot
+        LEFT JOIN market_consensus cl
+          ON cl.fixture_id = br.fixture_id AND cl.market = br.market
+         AND cl.selection = br.selection AND cl.snapshot = 'closing'
+        """
+    ).fetchall()
+    changed = 0
+    for r in rows:
+        clv = edge_math.clv(r["graded"], r["closing"]) if r["graded"] and r["closing"] else None
+        cur = conn.execute(
+            "UPDATE betting_results SET clv = ? WHERE recommendation_id = ? AND clv IS NOT ?",
+            (round(clv, 6) if clv is not None else None, r["recommendation_id"], round(clv, 6) if clv is not None else None),
+        )
+        changed += cur.rowcount
+    conn.commit()
+    return {"rows": len(rows), "changed": changed, "at": now_iso}
 
 
 def run(db_path: Path = None) -> dict:
@@ -157,7 +192,16 @@ def main() -> None:
 
     parser = argparse.ArgumentParser(description="Consensus, grading and settlement for the betting ledger.")
     parser.add_argument("--db-path", type=Path, default=None)
+    parser.add_argument("--recompute-clv", action="store_true", help="re-derive clv for all settled rows and exit")
     args = parser.parse_args()
+
+    if args.recompute_clv:
+        conn = db.get_connection(args.db_path)
+        db.init_db(conn)
+        out = recompute_clv(conn, datetime.now(timezone.utc).isoformat())
+        conn.close()
+        print(f"clv recomputed: {out['changed']} of {out['rows']} settled rows changed")
+        return
 
     config.STATUS_DIR.mkdir(parents=True, exist_ok=True)
     status_path = config.STATUS_DIR / "betting_status.json"

@@ -169,13 +169,42 @@ class Ledger(unittest.TestCase):
         self.assertEqual(res[("1X2", "away")]["profit_1u"], -1.0)
         self.assertEqual(res[("OU25", "over")]["won"], 1)
         self.assertEqual(res[("BTTS", "yes")]["won"], 1)
-        # Home shortened from ~1.83 to ~1.61 at the close: we beat the line.
-        self.assertGreater(res[("1X2", "home")]["clv"], 0)
+        # Home shortened from a 1.83 median to a 1.61 median at the close: we
+        # beat the line. Median vs median -- the best price (1.85) must not
+        # enter, or every row would look like value.
         self.assertEqual(res[("1X2", "home")]["closing_odds"], 1.61)
+        self.assertAlmostEqual(res[("1X2", "home")]["clv"], 1.83 / 1.61 - 1, places=5)
+        # Away drifted from 4.50 to 5.50: the market moved against us.
+        self.assertLess(res[("1X2", "away")]["clv"], 0)
+        # BTTS did not move: flat line, zero CLV, not a flattering positive.
+        self.assertAlmostEqual(res[("BTTS", "yes")]["clv"], 0.0, places=5)
 
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class ClvRecompute(unittest.TestCase):
+    def test_recompute_replaces_old_definition(self):
+        from betting.advisor import recompute_clv
+        conn = fresh_db()
+        add_odds(conn, "24h", T_24H, {"A": book(1.80, 3.60, 4.50, 1.70, 2.10, 1.75, 2.00),
+                                      "B": book(1.85, 3.50, 4.40, 1.72, 2.05, 1.72, 2.05),
+                                      "C": book(1.83, 3.55, 4.60, 1.68, 2.15, 1.78, 1.98)})
+        add_odds(conn, "closing", T_CLOSE, {"A": book(1.60, 3.90, 5.50, 1.55, 2.40, 1.75, 2.00),
+                                            "B": book(1.62, 3.80, 5.40, 1.57, 2.35, 1.72, 2.05),
+                                            "C": book(1.61, 3.85, 5.60, 1.56, 2.38, 1.78, 1.98)})
+        build_consensus(conn, NOW); add_lock(conn); grade_locked(conn, NOW)
+        conn.execute("UPDATE fixtures SET status_short='FT', home_goals=2, away_goals=1 WHERE fixture_id=?", (FIX,))
+        settle(conn, NOW)
+        # Simulate rows settled under the old best-vs-median definition.
+        conn.execute("UPDATE betting_results SET clv = 0.5"); conn.commit()
+        out = recompute_clv(conn, NOW)
+        self.assertEqual(out["changed"], 7)
+        home = conn.execute("SELECT r.clv FROM betting_results r JOIN betting_recommendations br USING(recommendation_id)"
+                            " WHERE br.market='1X2' AND br.selection='home'").fetchone()["clv"]
+        self.assertAlmostEqual(home, 1.83 / 1.61 - 1, places=5)
+        self.assertEqual(recompute_clv(conn, NOW)["changed"], 0)  # idempotent
 
 
 class Context(unittest.TestCase):

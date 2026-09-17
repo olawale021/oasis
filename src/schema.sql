@@ -313,7 +313,7 @@ CREATE TABLE IF NOT EXISTS betting_results (
     profit_1u          REAL,                   -- at best_odds; NULL without odds
     closing_odds       REAL,                   -- consensus median odds, closing window
     closing_prob       REAL,
-    clv                REAL,                   -- best_odds / closing_odds - 1
+    clv                REAL,                   -- graded-window median odds / closing median odds - 1
     settled_at         TEXT NOT NULL
 );
 

@@ -20,5 +20,9 @@ def profit_1u(won: bool, odds: float) -> float:
 def clv(taken_odds: float, closing_odds: float) -> float:
     """Closing-line value: how much better the price we graded at was than
     where the market closed. Positive means the market moved our way, which
-    is evidence of value independent of whether the selection won."""
+    is evidence of value independent of whether the selection won.
+
+    Compare like with like: consensus median at grade time against
+    consensus median at close. Best-of-N against a median is always
+    positive by construction and says nothing."""
     return taken_odds / closing_odds - 1.0
