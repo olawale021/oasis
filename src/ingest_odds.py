@@ -4,6 +4,7 @@ There is no historical odds archive to buy back, so collection must run from
 launch onward. This script is idempotent and schedule-driven: each run works
 out which snapshot window (7d / 24h / 6h / 1h / closing) every upcoming
 fixture is currently in and archives that window's odds if not already taken.
+Windows are hours-to-kickoff bands (see SNAPSHOT_WINDOWS); "24h" is 12-36h.
 Run it repeatedly (cron, or manually around matchdays) and each window fills
 exactly once per fixture -- rows are INSERT OR IGNORE, never updated, so the
 archive is append-only (PRD 18.4). The 'lineup' snapshot is reserved for a
@@ -38,12 +39,18 @@ CORE_MARKETS = {1: "Match Winner", 5: "Goals Over/Under", 8: "Both Teams Score"}
 # (label, min exclusive, max inclusive) in hours to kickoff. A run archives
 # the window the fixture currently sits in; earlier missed windows cannot be
 # reconstructed and are simply skipped -- honest gaps, not backfilled fakes.
+#
+# "24h" was 12-96h until 2026-09-17, so the first run that saw a fixture
+# archived it ~4 days out and the label lied. It is now 12-36h, so the
+# betting ledger's h24 track (grade a day out, CLV to the close) means what
+# it says; the ~4-day price folds into "7d". Every row carries
+# hours_to_kickoff, so old- and new-definition rows stay distinguishable.
 SNAPSHOT_WINDOWS = [
     ("closing", 0.0, 0.75),
     ("1h", 0.75, 3.0),
     ("6h", 3.0, 12.0),
-    ("24h", 12.0, 96.0),
-    ("7d", 96.0, 240.0),
+    ("24h", 12.0, 36.0),
+    ("7d", 36.0, 240.0),
 ]
 
 
