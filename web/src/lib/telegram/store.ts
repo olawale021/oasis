@@ -17,6 +17,9 @@ export interface TelegramPrefs {
   high_conf: boolean;
   /** Betting grades. Off by default; premium only; needs adult_confirmed_at. */
   betting: boolean;
+  /** Push betting grades only for HIGH-confidence fixtures (default on: a
+   * grade alert should be rare, not a feed). */
+  betting_high_only: boolean;
 }
 
 export interface TelegramRecord {
@@ -34,6 +37,7 @@ export const DEFAULT_PREFS: TelegramPrefs = {
   results: true,
   high_conf: true,
   betting: false,
+  betting_high_only: true,
 };
 
 export interface Subscriber {

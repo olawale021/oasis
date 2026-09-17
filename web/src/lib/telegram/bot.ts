@@ -85,8 +85,12 @@ export async function handleUpdate(update: Record<string, unknown>, ctx: Ctx): P
       if (!sub) return say("Betting grades need a connected lifetime account.");
       if (!sub.premium) return say("Betting grades are part of lifetime access: realscores.app/pricing");
       if (!sub.record.adult_confirmed_at) return say(ADULT_PROMPT, ADULT_KEYBOARD);
-      const text = bettingMessage(live, (live.betting?.rows ?? []).filter((r) => leagues.includes(live.matches.find((m) => m.id === r.id)?.lg as LeagueCode)));
-      return say(text ?? "Nothing graded above PASS right now — the engine is passing on everything, out loud.");
+      const words = parsed.arg.split(/\s+/).filter(Boolean);
+      const league = words.map(asLeague).find(Boolean);
+      const minConf = words.some((w) => /^high$/i.test(w)) ? "HIGH" : words.some((w) => /^med(ium)?$/i.test(w)) ? "MED" : undefined;
+      const rows = (live.betting?.rows ?? []).filter((r) => leagues.includes(live.matches.find((m) => m.id === r.id)?.lg as LeagueCode));
+      const text = bettingMessage(live, rows, { league, minConf });
+      return say(text ?? `Nothing graded above PASS${league || minConf ? " for that filter" : ""} right now — the engine is passing, out loud.`);
     }
     case "stop":
       return say((await unlinkChat(env.kv, chat_id)) ? "Disconnected. Nothing more will be sent here." : "This chat was not connected.");
@@ -158,7 +162,8 @@ export function buildDispatch(live: LiveData, subs: Subscriber[], events: Dispat
         const locked = view.matches.filter((m) => ids.has(m.id) && inLeagues(m.lg));
         if (prefs.high_conf) push(highConfMessage(locked));
         if (prefs.betting && sub.premium && sub.record.adult_confirmed_at) {
-          push(bettingMessage(view, (view.betting?.rows ?? []).filter((r) => ids.has(r.id) && r.locked)));
+          push(bettingMessage(view, (view.betting?.rows ?? []).filter((r) => ids.has(r.id) && r.locked),
+            { minConf: prefs.betting_high_only ? "HIGH" : undefined, limit: 8 }));
         }
       }
       if (ev.type === "settled" && prefs.results) {

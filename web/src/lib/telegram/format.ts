@@ -114,17 +114,46 @@ export function settledMessage(rows: RecentResult[]): string | null {
   return `<b>Settled</b> · ${hits} of ${done.length} right\n\n${byLeague(done, resultLine)}`;
 }
 
-/** WATCH/VALUE rows only -- PASS is the engine saying nothing to see. */
-export function bettingMessage(live: LiveData, rows: BettingRow[]): string | null {
+const REASON_SHORT: Record<string, string> = {
+  unvalidated_edge: "edge not yet validated by the backtest",
+  stale_odds: "newest price is days old",
+  few_bookmakers: "too few bookmakers quoting",
+  no_odds: "no odds archived yet",
+};
+
+export interface BettingFilter {
+  league?: LeagueCode;
+  /** Minimum fixture confidence: "HIGH" or "MED" (MED means MED or HIGH). */
+  minConf?: "HIGH" | "MED";
+  limit?: number;
+}
+
+/** WATCH/VALUE rows only -- PASS is the engine saying nothing to see.
+ * Grouped by league, strongest edge first, capped, with the ways to
+ * narrow it spelled out at the bottom. */
+export function bettingMessage(live: LiveData, rows: BettingRow[], filter: BettingFilter = {}): string | null {
   const byId = new Map(live.matches.map((m) => [m.id, m]));
-  const graded = rows.filter((r) => r.level !== "PASS" && byId.has(r.id) && !byId.get(r.id)!.gated);
+  const confOk = (c: MatchRecord["conf"]) => !filter.minConf || c === "HIGH" || (filter.minConf === "MED" && c === "MED");
+  const graded = rows
+    .map((r) => ({ r, m: byId.get(r.id) }))
+    .filter((x): x is { r: BettingRow; m: MatchRecord } =>
+      !!x.m && !x.m.gated && x.r.level !== "PASS" && (!filter.league || x.m.lg === filter.league) && confOk(x.m.conf))
+    .sort((a, b) => (b.r.edge ?? -1) - (a.r.edge ?? -1));
   if (graded.length === 0) return null;
-  const lines = graded.slice(0, 20).map((r) => {
-    const m = byId.get(r.id)!;
-    const nums = r.mp === null ? `model ${r.p.toFixed(0)}% · no odds` : `model ${r.p.toFixed(0)}% · market ${r.mp.toFixed(0)}% · edge ${r.edge! >= 0 ? "+" : ""}${r.edge!.toFixed(1)}pp${r.odds ? ` @ ${r.odds.toFixed(2)}` : ""}`;
-    return `<b>${esc(m.home)} v ${esc(m.away)}</b> · ${esc(selectionLabel(r, m))}\n   ${nums}\n   <b>${r.level}</b>${r.locked ? "" : " (pre-lock)"} — ${esc(r.reasons[0]?.detail ?? "")}`;
-  });
-  return `<b>Betting · graded disagreements</b>\n\n${lines.join("\n\n")}\n\n${BETTING_FOOTER}`;
+  const limit = filter.limit ?? 12;
+  const shown = graded.slice(0, limit);
+  const line = ({ r, m }: { r: BettingRow; m: MatchRecord }) => {
+    const nums = r.mp === null
+      ? `model ${r.p.toFixed(0)}% · no odds`
+      : `model ${r.p.toFixed(0)}% · market ${r.mp.toFixed(0)}% · <b>${r.edge! >= 0 ? "+" : ""}${r.edge!.toFixed(1)}pp</b>${r.odds ? ` @ ${r.odds.toFixed(2)}` : ""}`;
+    const why = REASON_SHORT[r.reasons[0]?.code ?? ""] ?? r.reasons[0]?.detail ?? "";
+    const conf = m.conf === "HIGH" ? " · high" : m.conf === "MED" ? " · med" : " · low";
+    return `${utcClock(m.kickoffUtc)}  <b>${shortName(m.home)}</b> v <b>${shortName(m.away)}</b> — ${esc(selectionLabel(r, m))}\n        ${nums}\n        ${r.level}${r.locked ? "" : " (pre-lock)"}${conf} · ${esc(why)}`;
+  };
+  const title = `<b>Betting · graded disagreements</b>${filter.league ? ` · ${esc(LEAGUE_NAMES[filter.league])}` : ""}${filter.minConf ? ` · ${filter.minConf === "HIGH" ? "high" : "med+"} confidence` : ""}`;
+  const more = graded.length > shown.length ? `\n\n<i>${graded.length - shown.length} more not shown.</i>` : "";
+  const narrow = "<i>Narrow it: /betting EPL · /betting high · /betting LAL med</i>";
+  return `${title} · ${graded.length}\n\n${byLeague(shown.map((x) => ({ ...x, lg: x.m.lg })), line)}${more}\n\n${narrow}\n${BETTING_FOOTER}`;
 }
 
 export function digestMessage(live: LiveData, prefs: TelegramPrefs): string {
@@ -149,7 +178,7 @@ export const HELP = [
   "/today [EPL|LAL|SEA|BUN|MLS] — upcoming forecasts",
   "/results [league] — settled forecasts, last 7 days",
   "/performance — the live record",
-  "/betting — graded model-vs-market disagreements (lifetime, 18+)",
+  "/betting [league] [high|med] — graded model-vs-market disagreements (lifetime, 18+)",
   "/alerts — choose leagues and alert types",
   "/account — your link and access",
   "/stop — disconnect",

@@ -13,6 +13,7 @@ const PREF_LABELS: Record<keyof Omit<TelegramPrefs, "leagues">, string> = {
   results: "Results as they settle",
   high_conf: "High-confidence forecasts",
   betting: "Betting grades (lifetime · 18+)",
+  betting_high_only: "…only for high-confidence fixtures",
 };
 
 export function alertsKeyboard(record: TelegramRecord, premium: boolean) {
