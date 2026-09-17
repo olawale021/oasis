@@ -5,6 +5,8 @@
 Three idempotent passes:
 
   consensus  market_consensus rows for every odds window not yet summarised.
+  context    h2h_summary and team_market_trends for upcoming and locked
+             fixtures, as of each fixture's kickoff (PRD 7, 8).
   grade      one betting_recommendations row per (locked prediction, market,
              selection) -- PASS rows too. The market is looked up as of the
              prediction's locked_at, never later, so every grade can be
@@ -32,6 +34,7 @@ import config  # noqa: E402
 import db  # noqa: E402
 from betting import edge as edge_math  # noqa: E402
 from betting.consensus import build_consensus, closing_consensus, consensus_as_of  # noqa: E402
+from betting.context import build_context  # noqa: E402
 from betting.markets import model_probs, selection_won  # noqa: E402
 from betting.thresholds import THRESHOLDS_VERSION, grade  # noqa: E402
 
@@ -137,6 +140,7 @@ def run(db_path: Path = None) -> dict:
     conn = db.get_connection(db_path)
     db.init_db(conn)
     counts = {"consensus_rows": build_consensus(conn, now_iso)}
+    counts.update(build_context(conn, now_iso))
     counts.update(grade_locked(conn, now_iso))
     counts.update(settle(conn, now_iso))
     conn.close()
@@ -167,7 +171,8 @@ def main() -> None:
     status_path.write_text(json.dumps(status, indent=2))
     c = status["counts"]
     print(
-        f"betting ledger: +{c['consensus_rows']} consensus rows, {c['fixtures_graded']} fixture(s) graded "
+        f"betting ledger: +{c['consensus_rows']} consensus rows, context for {c['context_fixtures']} fixture(s), "
+        f"{c['fixtures_graded']} graded "
         f"({c['recommendations']} rows: {c.get('PASS', 0)} PASS, {c.get('WATCH', 0)} WATCH), "
         f"{c['settled']} settled ({c['with_clv']} with CLV)"
     )

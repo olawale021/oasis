@@ -176,3 +176,62 @@ class Ledger(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class Context(unittest.TestCase):
+    """H2H / trends are as-of kickoff: later meetings and undecided matches
+    must not count, and wins are from the target fixture's home side."""
+
+    def setUp(self):
+        from betting.context import build_context
+        self.build = build_context
+        self.conn = fresh_db()
+        # Target: team 1 (home) v team 2 (away), kickoff 2026-09-14T15:00.
+        rows = [
+            # meetings before kickoff (any venue)
+            (101, 1, 2, "2026-01-10T15:00:00+00:00", "FT", 2, 0),   # team1 win, no btts, under
+            (102, 2, 1, "2026-03-10T15:00:00+00:00", "FT", 1, 1),   # draw, btts, under
+            (103, 2, 1, "2026-05-10T15:00:00+00:00", "AET", 3, 1),  # team2 win, btts, over
+            (104, 1, 2, "2026-09-13T20:00:00+00:00", "NS", None, None),  # undecided: ignored
+            (105, 1, 2, "2026-10-01T15:00:00+00:00", "FT", 5, 0),   # AFTER kickoff: must not count
+            # team 1 form filler (cup, different league_id)
+            (201, 1, 9, "2026-09-01T15:00:00+00:00", "FT", 4, 2),
+            (202, 9, 1, "2026-09-05T15:00:00+00:00", "FT", 0, 0),
+        ]
+        for fid, h, a, ko, st, hg, ag in rows:
+            self.conn.execute(
+                "INSERT INTO fixtures (fixture_id, league_id, season, kickoff_utc, status_short, home_team_id, away_team_id,"
+                " home_goals, away_goals, updated_at, raw_json) VALUES (?, 99, 2026, ?, ?, ?, ?, ?, ?, ?, '{}')",
+                (fid, ko, st, h, a, hg, ag, NOW))
+        add_lock(self.conn)  # makes FIX a target regardless of the horizon
+        self.conn.commit()
+        self.build(self.conn, NOW)
+
+    def test_h2h_is_point_in_time_and_home_perspective(self):
+        h = self.conn.execute("SELECT * FROM h2h_summary WHERE fixture_id = ?", (FIX,)).fetchone()
+        self.assertEqual(h["matches_considered"], 3)
+        self.assertEqual((h["home_wins"], h["draws"], h["away_wins"]), (1, 1, 1))
+        self.assertEqual((h["home_goals"], h["away_goals"]), (2 + 1 + 1, 0 + 1 + 3))
+        self.assertEqual(h["btts_count"], 2)
+        self.assertAlmostEqual(h["btts_rate"], 2 / 3, places=3)
+        self.assertEqual(h["over_2_5_count"], 1)
+        self.assertEqual(h["average_goals"], 2.67)  # (2+0 + 1+1 + 3+1) / 3
+        self.assertEqual(h["last_meeting_utc"], "2026-05-10T15:00:00+00:00")
+
+    def test_trends_span_competitions_and_exclude_future(self):
+        t = {r["team_id"]: r for r in self.conn.execute(
+            "SELECT * FROM team_market_trends WHERE fixture_id = ?", (FIX,)).fetchall()}
+        self.assertEqual(t[1]["matches_considered"], 5)     # 3 meetings + 2 cup ties
+        self.assertEqual(t[1]["goals_for"], 2 + 1 + 1 + 4 + 0)
+        self.assertEqual(t[1]["goals_against"], 0 + 1 + 3 + 2 + 0)
+        self.assertEqual(t[1]["over_2_5_count"], 2)         # 3-1 and 4-2
+        self.assertEqual(t[2]["matches_considered"], 3)
+        self.assertEqual(t[2]["btts_count"], 2)
+
+    def test_empty_history_gives_null_rates_not_zero(self):
+        self.conn.execute("DELETE FROM fixtures WHERE fixture_id BETWEEN 101 AND 202")
+        self.build(self.conn, NOW)
+        h = self.conn.execute("SELECT * FROM h2h_summary WHERE fixture_id = ?", (FIX,)).fetchone()
+        self.assertEqual(h["matches_considered"], 0)
+        self.assertIsNone(h["btts_rate"])
+        self.assertIsNone(h["average_goals"])

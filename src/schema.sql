@@ -324,3 +324,42 @@ SELECT br.* FROM betting_recommendations br
 WHERE br.stage = CASE
     WHEN EXISTS (SELECT 1 FROM betting_recommendations x WHERE x.fixture_id = br.fixture_id AND x.stage = 'final') THEN 'final'
     ELSE 'initial' END;
+
+-- Fixture context (Betting PRD 7, 8): explanation signals, not model
+-- features. Both are computed strictly from matches decided before the
+-- fixture's kickoff, so they contain no future information (PRD 28), and
+-- are re-computed on each run until kickoff so late-decided cup matches
+-- are picked up. Rates are NULL, not 0, when nothing was considered.
+CREATE TABLE IF NOT EXISTS h2h_summary (
+    fixture_id         INTEGER PRIMARY KEY REFERENCES fixtures(fixture_id),
+    matches_considered INTEGER NOT NULL,       -- last 5 decided meetings, any venue, any competition
+    home_wins          INTEGER NOT NULL,       -- from the perspective of this fixture's home team
+    draws              INTEGER NOT NULL,
+    away_wins          INTEGER NOT NULL,
+    home_goals         INTEGER NOT NULL,
+    away_goals         INTEGER NOT NULL,
+    btts_count         INTEGER NOT NULL,
+    btts_rate          REAL,
+    over_2_5_count     INTEGER NOT NULL,
+    over_2_5_rate      REAL,
+    average_goals      REAL,
+    last_meeting_utc   TEXT,
+    computed_at        TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS team_market_trends (
+    fixture_id         INTEGER NOT NULL REFERENCES fixtures(fixture_id),
+    team_id            INTEGER NOT NULL REFERENCES teams(team_id),
+    matches_considered INTEGER NOT NULL,       -- last 10 decided matches, any competition
+    btts_count         INTEGER NOT NULL,
+    btts_rate          REAL,
+    over_2_5_count     INTEGER NOT NULL,
+    over_2_5_rate      REAL,
+    goals_for          INTEGER NOT NULL,
+    goals_against      INTEGER NOT NULL,
+    computed_at        TEXT NOT NULL,
+    PRIMARY KEY (fixture_id, team_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_fixtures_home_kickoff ON fixtures (home_team_id, kickoff_utc);
+CREATE INDEX IF NOT EXISTS idx_fixtures_away_kickoff ON fixtures (away_team_id, kickoff_utc);
