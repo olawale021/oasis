@@ -41,6 +41,7 @@ STEP_FILES = [
     ("predict", "Predictions"),
     ("lifecycle", "Lock & settle"),
     ("betting", "Betting ledger"),
+    ("backtest_edges", "Betting backtest"),
 ]
 LOCK_WINDOW_MINUTES = 70  # must match scripts/matchday.sh --window-minutes
 LEDGER_ROWS = 60

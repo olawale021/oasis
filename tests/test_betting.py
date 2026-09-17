@@ -393,3 +393,62 @@ class Export(unittest.TestCase):
         self.assertIsNone(home["mp"]); self.assertIsNone(home["edge"]); self.assertIsNone(home["odds"])
         self.assertEqual(home["level"], "WATCH")
         self.assertEqual(home["reasons"][0]["code"], "no_odds")
+
+
+class Backtest(unittest.TestCase):
+    """Pure pieces of the evidence gate: buckets, stats, validation, walk-forward."""
+
+    def setUp(self):
+        from betting import backtest_edges as be
+        self.be = be
+
+    def test_buckets(self):
+        be = self.be
+        self.assertEqual([be.edge_bucket(x) for x in (-0.01, 0.01, 0.04, 0.06, 0.2)], ["negative", "0-3pp", "3-5pp", "5-8pp", "8pp+"])
+        self.assertEqual([be.books_band(x) for x in (None, 3, 7, 12)], ["none", "<5", "5-9", "10+"])
+        self.assertEqual([be.odds_band(x) for x in (1.3, 2.0, 3.0, 9.0)], ["<=1.5", "1.5-2.5", "2.5-4", "4+"])
+        self.assertEqual(be.prob_band(0.47), "40-50%")
+        self.assertEqual(be.iso_week("2026-09-14T15:00:00+00:00"), "2026-W38")
+
+    def _row(self, week, won, profit, clv, model_p=0.5, market_p=0.45, closing_p=0.47, **kw):
+        base = {"track": "h24", "market": "1X2", "selection": "home", "league": "EPL",
+                "kickoff": f"2026-{week}T15:00:00+00:00", "week": self.be.iso_week(f"2026-{week}T15:00:00+00:00"),
+                "edge": model_p - market_p, "edge_bucket": self.be.edge_bucket(model_p - market_p),
+                "confidence": "HIGH", "books": "10+", "odds": "1.5-2.5", "hours": 24.0,
+                "model_prob": model_p, "market_prob": market_p, "closing_prob": closing_p,
+                "won": won, "profit": profit, "clv": clv, "level": "WATCH"}
+        base.update(kw)
+        return base
+
+    def test_cell_stats_and_drawdown(self):
+        rows = [self._row("09-01", 1, 1.0, 0.05), self._row("09-02", 0, -1.0, 0.02), self._row("09-03", 1, 1.0, 0.03)]
+        s = self.be.cell_stats(rows)
+        self.assertEqual(s["n"], 3)
+        self.assertAlmostEqual(s["hit_rate"], 2 / 3, places=3)
+        self.assertAlmostEqual(s["roi"], 1 / 3, places=3)
+        self.assertLess(s["roi_ci"][0], s["roi"]); self.assertGreater(s["roi_ci"][1], s["roi"])
+        self.assertAlmostEqual(s["clv_median"], 0.03, places=6)
+        self.assertEqual(s["max_drawdown_1u"], -1.0)
+        self.assertEqual(s["market_moved_toward"], 1.0)   # closing 0.47 > market 0.45 on every row
+        self.assertAlmostEqual(s["calibration_gap"], 0.5 - 2 / 3, places=3)
+
+    def test_gate_requires_n_and_clv_ci_above_zero(self):
+        be = self.be
+        good = [self._row("09-01", 1, 0.9, 0.04) for _ in range(120)]
+        self.assertEqual(list(be.validated_cells(good, 100)), ["h24 | 1X2 | 3-5pp"])
+        self.assertEqual(be.validated_cells(good[:50], 100), {})                       # too few
+        mixed = [self._row("09-01", 1, 0.9, (0.3 if i % 2 else -0.3)) for i in range(120)]
+        self.assertEqual(be.validated_cells(mixed, 100), {})                           # CLV CI straddles zero
+        losing = [self._row("09-01", 0, -1.0, 0.04) for _ in range(120)]
+        self.assertEqual(be.validated_cells(losing, 100), {})                          # positive CLV, negative ROI
+
+    def test_walk_forward_scores_only_out_of_sample(self):
+        be = self.be
+        rows = [self._row("09-0%d" % (1 + i % 5), 1, 0.9, 0.04) for i in range(120)]    # week 36, validating
+        rows += [self._row("09-%02d" % (7 + i % 5), 0, -1.0, 0.04) for i in range(10)]   # 7-11 Sep = W37, loses
+        wf = be.walk_forward(rows, 100)
+        weeks = {f["week"]: f for f in wf["folds"]}
+        self.assertEqual(weeks["2026-W36"]["value_rows"], 0)      # nothing validated before week 36
+        self.assertEqual(weeks["2026-W37"]["value_rows"], 10)     # validated on week 36, scored on week 37
+        self.assertEqual(wf["oos_value"]["n"], 10)
+        self.assertEqual(wf["oos_value"]["roi"], -1.0)            # the honest number, not the in-sample +90%

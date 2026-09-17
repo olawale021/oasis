@@ -66,5 +66,10 @@ run settle          $PY src/lifecycle.py settle
 # row per locked prediction x market x selection (PASS included), CLV on
 # settlement. Reads odds as of locked_at, so ordering after lock matters.
 run betting         $PY src/betting/advisor.py
+# Betting backtest (Betting PRD 18/19): edge buckets, CLV, walk-forward
+# gate. Reads only settled rows, so once a day is plenty.
+if [[ "$(date -u +%H)" == "06" ]]; then
+  run backtest_edges $PY src/betting/backtest_edges.py
+fi
 run export_web      $PY src/export_web.py
 run kv_push bash -c 'cd web && npx wrangler kv key put live --path src/data/live.json --binding LIVE_KV --remote 2>&1 | grep -v -E "Metrics|^\s*$" | grep -i -E "error|fail|Writing"'
