@@ -11,6 +11,12 @@ Three idempotent passes:
              selection) -- PASS rows too. The market is looked up as of the
              prediction's locked_at, never later, so every grade can be
              reproduced from stored data alone.
+  horizon    the same seven rows per fixture at stage h24, written on the
+             first run that finds the fixture's 24h consensus, from this
+             run's prediction (outputs/predictions.json). A lock-time grade
+             is made minutes from the close, so its closing-line value is
+             ~0 by construction; the h24 row is the recommendation a day
+             out, and its CLV is the real question (PRD 18, 20).
   settle     betting_results for graded fixtures that have a final score:
              won, profit at the graded price, and closing-line value where a
              closing window was archived.
@@ -39,6 +45,46 @@ from betting.markets import model_probs, selection_won  # noqa: E402
 from betting.thresholds import THRESHOLDS_VERSION, grade  # noqa: E402
 
 DECIDED_STATUSES = ("FT", "AET", "PEN")
+PREDICTIONS_PATH = config.ROOT_DIR / "outputs" / "predictions.json"
+# odds window -> ledger stage. Extend with ("6h", "h6"), ("1h", "h1") for
+# the full curve; each adds seven rows per fixture.
+HORIZONS = (("24h", "h24"),)
+
+REC_COLUMNS = (
+    "fixture_id", "stage", "league_code", "kickoff_utc", "locked_at", "hours_to_kickoff", "market", "selection",
+    "model_version", "goals_version", "model_prob", "market_prob", "market_snapshot", "bookmaker_count", "edge",
+    "best_odds", "expected_value", "confidence", "level", "reasons_json", "thresholds_version", "generated_at",
+)
+
+
+def _insert_rec(conn, row: dict) -> None:
+    conn.execute(
+        f"INSERT OR IGNORE INTO betting_recommendations ({', '.join(REC_COLUMNS)})"
+        f" VALUES ({', '.join(':' + c for c in REC_COLUMNS)})",
+        {c: row.get(c) for c in REC_COLUMNS},
+    )
+
+
+def _graded_row(fixture_id, stage, league_code, kickoff_utc, locked_at, hours, market, sel, p, mkt_row,
+                model_version, goals_version, confidence, now_iso) -> dict:
+    market_prob = mkt_row["consensus_prob"] if mkt_row else None
+    best_odds = mkt_row["best_odds"] if mkt_row else None
+    e = edge_math.edge(p, market_prob) if mkt_row else None
+    ev = edge_math.expected_value(p, best_odds) if mkt_row else None
+    level, reasons = grade(p, market_prob, ev, mkt_row["bookmaker_count"] if mkt_row else None,
+                           mkt_row["snapshot"] if mkt_row else None)
+    return {
+        "fixture_id": fixture_id, "stage": stage, "league_code": league_code, "kickoff_utc": kickoff_utc,
+        "locked_at": locked_at, "hours_to_kickoff": round(hours, 2) if hours is not None else None,
+        "market": market, "selection": sel, "model_version": model_version, "goals_version": goals_version,
+        "model_prob": round(p, 6), "market_prob": market_prob,
+        "market_snapshot": mkt_row["snapshot"] if mkt_row else None,
+        "bookmaker_count": mkt_row["bookmaker_count"] if mkt_row else None,
+        "edge": round(e, 6) if e is not None else None, "best_odds": best_odds,
+        "expected_value": round(ev, 6) if ev is not None else None, "confidence": confidence,
+        "level": level, "reasons_json": json.dumps(reasons), "thresholds_version": THRESHOLDS_VERSION,
+        "generated_at": now_iso,
+    }
 
 
 def grade_locked(conn, now_iso: str) -> dict:
@@ -55,38 +101,64 @@ def grade_locked(conn, now_iso: str) -> dict:
 
     counts = {"fixtures_graded": 0, "recommendations": 0, "PASS": 0, "WATCH": 0}
     for lp in locked:
-        probs = model_probs(lp)
-        for market, sels in probs.items():
+        hours = (datetime.fromisoformat(lp["kickoff_utc"]) - datetime.fromisoformat(lp["locked_at"])).total_seconds() / 3600
+        for market, sels in model_probs(lp).items():
             mkt = consensus_as_of(conn, lp["fixture_id"], market, lp["locked_at"])
             for sel, p in sels.items():
-                row = mkt.get(sel) if mkt else None
-                market_prob = row["consensus_prob"] if row else None
-                best_odds = row["best_odds"] if row else None
-                e = edge_math.edge(p, market_prob) if row else None
-                ev = edge_math.expected_value(p, best_odds) if row else None
-                level, reasons = grade(p, market_prob, ev, row["bookmaker_count"] if row else None,
-                                       row["snapshot"] if row else None)
-                conn.execute(
-                    """
-                    INSERT OR IGNORE INTO betting_recommendations
-                        (fixture_id, stage, league_code, kickoff_utc, locked_at, market, selection,
-                         model_version, goals_version, model_prob, market_prob, market_snapshot,
-                         bookmaker_count, edge, best_odds, expected_value, confidence, level,
-                         reasons_json, thresholds_version, generated_at)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                    """,
-                    (
-                        lp["fixture_id"], lp["stage"], lp["league_code"], lp["kickoff_utc"], lp["locked_at"],
-                        market, sel, lp["model_version"], lp["goals_version"], round(p, 6),
-                        market_prob, row["snapshot"] if row else None, row["bookmaker_count"] if row else None,
-                        round(e, 6) if e is not None else None, best_odds,
-                        round(ev, 6) if ev is not None else None, lp["confidence"], level,
-                        json.dumps(reasons), THRESHOLDS_VERSION, now_iso,
-                    ),
-                )
+                row = _graded_row(lp["fixture_id"], lp["stage"], lp["league_code"], lp["kickoff_utc"], lp["locked_at"],
+                                  hours, market, sel, p, mkt.get(sel) if mkt else None, lp["model_version"],
+                                  lp["goals_version"], lp["confidence"], now_iso)
+                _insert_rec(conn, row)
                 counts["recommendations"] += 1
-                counts[level] = counts.get(level, 0) + 1
+                counts[row["level"]] = counts.get(row["level"], 0) + 1
         counts["fixtures_graded"] += 1
+    conn.commit()
+    return counts
+
+
+def grade_horizon(conn, predictions: dict, now_iso: str) -> dict:
+    """Write the h24 (etc.) rows for every upcoming prediction whose horizon
+    consensus exists and which has no rows at that stage yet. The model
+    probability is this run's; the market is that window's, unchanged."""
+    now = datetime.fromisoformat(now_iso)
+    counts = {"horizon_fixtures": 0, "horizon_rows": 0}
+    if not predictions:
+        return counts
+    registry = predictions.get("model_registry", {})
+    for p in predictions.get("predictions", []):
+        kickoff = datetime.fromisoformat(p["kickoff_utc"])
+        if kickoff <= now:
+            continue
+        reg = registry.get(p["league"], {})
+        model_version = reg.get("outcome", {}).get("version")
+        goals_version = reg.get("goals", {}).get("version")
+        if not model_version:
+            continue  # cannot stamp a release; the row would be unreproducible
+        for window, stage in HORIZONS:
+            if conn.execute(
+                "SELECT 1 FROM betting_recommendations WHERE fixture_id = ? AND stage = ?", (p["fixture_id"], stage)
+            ).fetchone():
+                continue
+            consensus = conn.execute(
+                "SELECT * FROM market_consensus WHERE fixture_id = ? AND snapshot = ?", (p["fixture_id"], window)
+            ).fetchall()
+            if not consensus:
+                continue  # not in this window yet (or the window was missed: honest gap)
+            by_market = {}
+            for r in consensus:
+                by_market.setdefault(r["market"], {})[r["selection"]] = r
+            hours = (kickoff - now).total_seconds() / 3600
+            wrote = 0
+            for market, sels in model_probs(p).items():
+                mkt = by_market.get(market)
+                for sel, prob in sels.items():
+                    row = _graded_row(p["fixture_id"], stage, p["league"], p["kickoff_utc"], now_iso, hours, market, sel,
+                                      prob, mkt.get(sel) if mkt else None, model_version, goals_version,
+                                      p["confidence"], now_iso)
+                    _insert_rec(conn, row)
+                    wrote += 1
+            counts["horizon_rows"] += wrote
+            counts["horizon_fixtures"] += 1
     conn.commit()
     return counts
 
@@ -184,10 +256,14 @@ def recompute_clv(conn, now_iso: str) -> dict:
 
 def migrate(conn) -> None:
     """schema.sql only creates; columns added later need ALTER on live DBs."""
-    cols = {r["name"] for r in conn.execute("PRAGMA table_info(betting_results)")}
-    for name, decl in (("clv_24h", "REAL"), ("clv_version", "TEXT")):
-        if name not in cols:
-            conn.execute(f"ALTER TABLE betting_results ADD COLUMN {name} {decl}")
+    for table, added in (
+        ("betting_results", (("clv_24h", "REAL"), ("clv_version", "TEXT"))),
+        ("betting_recommendations", (("hours_to_kickoff", "REAL"),)),
+    ):
+        cols = {r["name"] for r in conn.execute(f"PRAGMA table_info({table})")}
+        for name, decl in added:
+            if name not in cols:
+                conn.execute(f"ALTER TABLE {table} ADD COLUMN {name} {decl}")
     conn.commit()
 
 
@@ -200,6 +276,8 @@ def run(db_path: Path = None) -> dict:
     counts = {"consensus_rows": build_consensus(conn, now_iso)}
     counts.update(build_context(conn, now_iso))
     counts.update(grade_locked(conn, now_iso))
+    predictions = json.loads(PREDICTIONS_PATH.read_text()) if PREDICTIONS_PATH.exists() else None
+    counts.update(grade_horizon(conn, predictions, now_iso))
     counts.update(settle(conn, now_iso))
     conn.close()
     return {
@@ -240,8 +318,9 @@ def main() -> None:
     c = status["counts"]
     print(
         f"betting ledger: +{c['consensus_rows']} consensus rows, context for {c['context_fixtures']} fixture(s), "
-        f"{c['fixtures_graded']} graded "
+        f"{c['fixtures_graded']} graded at lock "
         f"({c['recommendations']} rows: {c.get('PASS', 0)} PASS, {c.get('WATCH', 0)} WATCH), "
+        f"{c['horizon_fixtures']} graded at 24h ({c['horizon_rows']} rows), "
         f"{c['settled']} settled ({c['with_clv']} with CLV)"
     )
 

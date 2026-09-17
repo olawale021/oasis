@@ -275,10 +275,16 @@ CREATE TABLE IF NOT EXISTS market_consensus (
     PRIMARY KEY (fixture_id, market, selection, snapshot)
 );
 
--- One row per (locked prediction, market, selection), PASS rows included:
+-- One row per (prediction, stage, market, selection), PASS rows included:
 -- the backtest needs to know what happened to the bets we did NOT
 -- recommend (PRD 18/19). Probabilities in [0,1]; edge = model - market in
 -- the same units (multiply by 100 for percentage points).
+--
+-- Stages: `initial` and `final` mirror locked_predictions (graded at lock,
+-- ~60 and ~25 min before kickoff). `h24` is the horizon track (PRD 18):
+-- graded on the first run that sees the fixture inside the 24h odds
+-- window, from that run's prediction and that window's consensus, so its
+-- CLV is honestly "the price we graded at vs the close".
 CREATE TABLE IF NOT EXISTS betting_recommendations (
     recommendation_id  INTEGER PRIMARY KEY AUTOINCREMENT,
     fixture_id         INTEGER NOT NULL REFERENCES fixtures(fixture_id),
@@ -286,6 +292,7 @@ CREATE TABLE IF NOT EXISTS betting_recommendations (
     league_code        TEXT NOT NULL,
     kickoff_utc        TEXT NOT NULL,
     locked_at          TEXT NOT NULL,          -- as-of instant for the market lookup
+    hours_to_kickoff   REAL,                   -- at locked_at; horizon rows span a window, so keep the exact distance
     market             TEXT NOT NULL,
     selection          TEXT NOT NULL,
     model_version      TEXT NOT NULL,

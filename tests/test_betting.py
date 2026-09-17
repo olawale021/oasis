@@ -15,7 +15,7 @@ sys.path.insert(0, str(ROOT / "src"))
 
 import config  # noqa: E402
 from betting import edge as edge_math  # noqa: E402
-from betting.advisor import grade_locked, settle  # noqa: E402
+from betting.advisor import grade_horizon, grade_locked, settle  # noqa: E402
 from betting.consensus import build_consensus, consensus_as_of  # noqa: E402
 from betting.markets import selection_won  # noqa: E402
 from betting.thresholds import EDGE_FLOOR, MIN_BOOKMAKERS, grade  # noqa: E402
@@ -223,11 +223,63 @@ class Migration(unittest.TestCase):
         conn = fresh_db()
         conn.execute("ALTER TABLE betting_results DROP COLUMN clv_24h")
         conn.execute("ALTER TABLE betting_results DROP COLUMN clv_version")
+        conn.execute("ALTER TABLE betting_recommendations DROP COLUMN hours_to_kickoff")
         migrate(conn)
         cols = {r["name"] for r in conn.execute("PRAGMA table_info(betting_results)")}
         self.assertIn("clv_24h", cols)
         self.assertIn("clv_version", cols)
+        self.assertIn("hours_to_kickoff", {r["name"] for r in conn.execute("PRAGMA table_info(betting_recommendations)")})
         migrate(conn)  # idempotent
+
+
+class Horizon(unittest.TestCase):
+    """h24 rows: graded from this run's prediction and the 24h window, once,
+    only before kickoff; their CLV is graded price vs close."""
+
+    T_DAY_BEFORE = "2026-09-13T16:00:00+00:00"   # after the 24h fetch, a day before kickoff
+
+    def setUp(self):
+        self.conn = fresh_db()
+        add_odds(self.conn, "24h", T_24H, {"A": book(1.80, 3.60, 4.50, 1.70, 2.10, 1.75, 2.00),
+                                           "B": book(1.85, 3.50, 4.40, 1.72, 2.05, 1.72, 2.05),
+                                           "C": book(1.83, 3.55, 4.60, 1.68, 2.15, 1.78, 1.98)})
+        build_consensus(self.conn, NOW)
+        self.pred = {"model_registry": {"EPL": {"outcome": {"version": "m1"}, "goals": {"version": "g1"}}},
+                     "predictions": [{"fixture_id": FIX, "league": "EPL", "kickoff_utc": "2026-09-14T15:00:00+00:00",
+                                      "p_home": 60.0, "p_draw": 22.0, "p_away": 18.0, "over_2_5": 64.0, "btts": 55.0,
+                                      "confidence": "HIGH"}]}
+
+    def test_writes_once_from_the_24h_window(self):
+        c = grade_horizon(self.conn, self.pred, self.T_DAY_BEFORE)
+        self.assertEqual(c, {"horizon_fixtures": 1, "horizon_rows": 7})
+        self.assertEqual(grade_horizon(self.conn, self.pred, self.T_DAY_BEFORE)["horizon_rows"], 0)
+        rows = self.conn.execute("SELECT * FROM betting_recommendations WHERE stage = 'h24'").fetchall()
+        self.assertEqual(len(rows), 7)
+        home = next(r for r in rows if r["market"] == "1X2" and r["selection"] == "home")
+        self.assertEqual(home["market_snapshot"], "24h")
+        self.assertEqual(home["best_odds"], 1.85)
+        self.assertAlmostEqual(home["hours_to_kickoff"], 23.0, places=2)
+        self.assertEqual(home["model_version"], "m1")
+        # Not in betting_effective: that view is the lock-time track.
+        self.assertEqual(self.conn.execute("SELECT COUNT(*) FROM betting_effective").fetchone()[0], 0)
+
+    def test_skips_kicked_off_and_windowless(self):
+        self.assertEqual(grade_horizon(self.conn, self.pred, NOW)["horizon_rows"], 0)  # NOW is after kickoff
+        self.conn.execute("DELETE FROM market_consensus WHERE snapshot = '24h'")
+        self.assertEqual(grade_horizon(self.conn, self.pred, self.T_DAY_BEFORE)["horizon_rows"], 0)
+
+    def test_horizon_clv_is_graded_price_vs_close(self):
+        grade_horizon(self.conn, self.pred, self.T_DAY_BEFORE)
+        add_odds(self.conn, "closing", T_CLOSE, {"A": book(1.60, 3.90, 5.50, 1.55, 2.40, 1.75, 2.00),
+                                                 "B": book(1.62, 3.80, 5.40, 1.57, 2.35, 1.72, 2.05),
+                                                 "C": book(1.61, 3.85, 5.60, 1.56, 2.38, 1.78, 1.98)})
+        build_consensus(self.conn, NOW)
+        self.conn.execute("UPDATE fixtures SET status_short='FT', home_goals=2, away_goals=1 WHERE fixture_id=?", (FIX,))
+        self.assertEqual(settle(self.conn, NOW)["settled"], 7)
+        r = self.conn.execute("SELECT r.* FROM betting_results r JOIN betting_recommendations br USING(recommendation_id)"
+                              " WHERE br.stage='h24' AND br.market='1X2' AND br.selection='home'").fetchone()
+        self.assertAlmostEqual(r["clv"], 1.83 / 1.61 - 1, places=5)
+        self.assertAlmostEqual(r["clv"], r["clv_24h"], places=6)  # same thing, by construction, on this track
 
 
 class Context(unittest.TestCase):
