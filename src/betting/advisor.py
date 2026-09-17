@@ -95,12 +95,16 @@ def settle(conn, now_iso: str) -> dict:
     rows = conn.execute(
         f"""
         SELECT br.recommendation_id, br.fixture_id, br.market, br.selection, br.best_odds,
-               mc.median_odds AS graded_median_odds, f.home_goals, f.away_goals
+               mc.median_odds AS graded_median_odds, d1.median_odds AS median_24h,
+               f.home_goals, f.away_goals
         FROM betting_recommendations br
         JOIN fixtures f ON f.fixture_id = br.fixture_id
         LEFT JOIN market_consensus mc
           ON mc.fixture_id = br.fixture_id AND mc.market = br.market
          AND mc.selection = br.selection AND mc.snapshot = br.market_snapshot
+        LEFT JOIN market_consensus d1
+          ON d1.fixture_id = br.fixture_id AND d1.market = br.market
+         AND d1.selection = br.selection AND d1.snapshot = '24h'
         WHERE f.status_short IN ({", ".join("?" for _ in DECIDED_STATUSES)})
           AND f.home_goals IS NOT NULL AND f.away_goals IS NOT NULL
           AND NOT EXISTS (SELECT 1 FROM betting_results r WHERE r.recommendation_id = br.recommendation_id)
@@ -123,18 +127,19 @@ def settle(conn, now_iso: str) -> dict:
         # is above the median by construction and would flatter every row.
         graded = r["graded_median_odds"]
         clv = edge_math.clv(graded, closing_odds) if graded and closing_odds else None
+        clv_24h = edge_math.clv(r["median_24h"], closing_odds) if r["median_24h"] and closing_odds else None
         conn.execute(
             """
             INSERT OR IGNORE INTO betting_results
-                (recommendation_id, result_home, result_away, won, profit_1u, closing_odds, closing_prob, clv, settled_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                (recommendation_id, result_home, result_away, won, profit_1u, closing_odds, closing_prob, clv, clv_24h, settled_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (r["recommendation_id"], r["home_goals"], r["away_goals"], int(won),
              round(profit, 4) if profit is not None else None, closing_odds, closing_prob,
-             round(clv, 6) if clv is not None else None, now_iso),
+             round(clv, 6) if clv is not None else None, round(clv_24h, 6) if clv_24h is not None else None, now_iso),
         )
         counts["settled"] += 1
-        if clv is not None:
+        if clv_24h is not None:
             counts["with_clv"] += 1
     conn.commit()
     return counts
@@ -146,12 +151,15 @@ def recompute_clv(conn, now_iso: str) -> dict:
     rows settled while clv compared best_odds to the closing median."""
     rows = conn.execute(
         """
-        SELECT r.recommendation_id, mc.median_odds AS graded, cl.median_odds AS closing
+        SELECT r.recommendation_id, mc.median_odds AS graded, d1.median_odds AS h24, cl.median_odds AS closing
         FROM betting_results r
         JOIN betting_recommendations br USING (recommendation_id)
         LEFT JOIN market_consensus mc
           ON mc.fixture_id = br.fixture_id AND mc.market = br.market
          AND mc.selection = br.selection AND mc.snapshot = br.market_snapshot
+        LEFT JOIN market_consensus d1
+          ON d1.fixture_id = br.fixture_id AND d1.market = br.market
+         AND d1.selection = br.selection AND d1.snapshot = '24h'
         LEFT JOIN market_consensus cl
           ON cl.fixture_id = br.fixture_id AND cl.market = br.market
          AND cl.selection = br.selection AND cl.snapshot = 'closing'
@@ -160,13 +168,24 @@ def recompute_clv(conn, now_iso: str) -> dict:
     changed = 0
     for r in rows:
         clv = edge_math.clv(r["graded"], r["closing"]) if r["graded"] and r["closing"] else None
+        clv_24h = edge_math.clv(r["h24"], r["closing"]) if r["h24"] and r["closing"] else None
+        vals = (round(clv, 6) if clv is not None else None, round(clv_24h, 6) if clv_24h is not None else None)
         cur = conn.execute(
-            "UPDATE betting_results SET clv = ? WHERE recommendation_id = ? AND clv IS NOT ?",
-            (round(clv, 6) if clv is not None else None, r["recommendation_id"], round(clv, 6) if clv is not None else None),
+            "UPDATE betting_results SET clv = ?, clv_24h = ? WHERE recommendation_id = ?"
+            " AND (clv IS NOT ? OR clv_24h IS NOT ?)",
+            (*vals, r["recommendation_id"], *vals),
         )
         changed += cur.rowcount
     conn.commit()
     return {"rows": len(rows), "changed": changed, "at": now_iso}
+
+
+def migrate(conn) -> None:
+    """schema.sql only creates; columns added later need ALTER on live DBs."""
+    cols = {r["name"] for r in conn.execute("PRAGMA table_info(betting_results)")}
+    if "clv_24h" not in cols:
+        conn.execute("ALTER TABLE betting_results ADD COLUMN clv_24h REAL")
+        conn.commit()
 
 
 def run(db_path: Path = None) -> dict:
@@ -174,6 +193,7 @@ def run(db_path: Path = None) -> dict:
     now_iso = datetime.now(timezone.utc).isoformat()
     conn = db.get_connection(db_path)
     db.init_db(conn)
+    migrate(conn)
     counts = {"consensus_rows": build_consensus(conn, now_iso)}
     counts.update(build_context(conn, now_iso))
     counts.update(grade_locked(conn, now_iso))
@@ -198,6 +218,7 @@ def main() -> None:
     if args.recompute_clv:
         conn = db.get_connection(args.db_path)
         db.init_db(conn)
+        migrate(conn)
         out = recompute_clv(conn, datetime.now(timezone.utc).isoformat())
         conn.close()
         print(f"clv recomputed: {out['changed']} of {out['rows']} settled rows changed")

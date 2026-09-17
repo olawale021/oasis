@@ -176,6 +176,10 @@ class Ledger(unittest.TestCase):
         self.assertAlmostEqual(res[("1X2", "home")]["clv"], 1.83 / 1.61 - 1, places=5)
         # Away drifted from 4.50 to 5.50: the market moved against us.
         self.assertLess(res[("1X2", "away")]["clv"], 0)
+        # Horizon CLV: 24h median vs close. Here the lock preceded the closing
+        # fetch, so it equals clv; in production the lock usually follows it
+        # and clv is ~0 while clv_24h still carries the day's movement.
+        self.assertAlmostEqual(res[("1X2", "home")]["clv_24h"], 1.83 / 1.61 - 1, places=5)
         # BTTS did not move: flat line, zero CLV, not a flattering positive.
         self.assertAlmostEqual(res[("BTTS", "yes")]["clv"], 0.0, places=5)
 
@@ -198,13 +202,27 @@ class ClvRecompute(unittest.TestCase):
         conn.execute("UPDATE fixtures SET status_short='FT', home_goals=2, away_goals=1 WHERE fixture_id=?", (FIX,))
         settle(conn, NOW)
         # Simulate rows settled under the old best-vs-median definition.
-        conn.execute("UPDATE betting_results SET clv = 0.5"); conn.commit()
+        conn.execute("UPDATE betting_results SET clv = 0.5, clv_24h = NULL"); conn.commit()
         out = recompute_clv(conn, NOW)
         self.assertEqual(out["changed"], 7)
+        h24 = conn.execute("SELECT r.clv_24h FROM betting_results r JOIN betting_recommendations br USING(recommendation_id)"
+                           " WHERE br.market='1X2' AND br.selection='home'").fetchone()["clv_24h"]
+        self.assertAlmostEqual(h24, 1.83 / 1.61 - 1, places=5)
         home = conn.execute("SELECT r.clv FROM betting_results r JOIN betting_recommendations br USING(recommendation_id)"
                             " WHERE br.market='1X2' AND br.selection='home'").fetchone()["clv"]
         self.assertAlmostEqual(home, 1.83 / 1.61 - 1, places=5)
         self.assertEqual(recompute_clv(conn, NOW)["changed"], 0)  # idempotent
+
+
+class Migration(unittest.TestCase):
+    def test_adds_clv_24h_to_a_pre_existing_results_table(self):
+        from betting.advisor import migrate
+        conn = fresh_db()
+        conn.execute("ALTER TABLE betting_results DROP COLUMN clv_24h")
+        migrate(conn)
+        cols = {r["name"] for r in conn.execute("PRAGMA table_info(betting_results)")}
+        self.assertIn("clv_24h", cols)
+        migrate(conn)  # idempotent
 
 
 class Context(unittest.TestCase):

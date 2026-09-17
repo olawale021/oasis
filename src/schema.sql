@@ -313,7 +313,13 @@ CREATE TABLE IF NOT EXISTS betting_results (
     profit_1u          REAL,                   -- at best_odds; NULL without odds
     closing_odds       REAL,                   -- consensus median odds, closing window
     closing_prob       REAL,
-    clv                REAL,                   -- graded-window median odds / closing median odds - 1
+    -- Two closing-line values. `clv` is the graded window vs close; locks
+    -- land ~25 min before kickoff, after the closing fetch, so it is ~0 by
+    -- construction and kept only for completeness. `clv_24h` is the 24h
+    -- consensus vs close: whether the market moved toward the model's view
+    -- over the last day, which is the informative one (PRD 18 horizon).
+    clv                REAL,
+    clv_24h            REAL,
     settled_at         TEXT NOT NULL
 );
 
