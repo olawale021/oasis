@@ -37,7 +37,12 @@ trap finish EXIT
 run() { STEP="$1"; shift; "$@"; }
 
 run ingest_odds     $PY src/ingest_odds.py
-run ingest_fixtures $PY src/ingest_fixtures.py --league-ids 39,140,135,78,253 --seasons 2026 --force-refresh
+run ingest_fixtures $PY src/ingest_fixtures.py --league-ids 39,140,135,78,253,2 --seasons 2026 --force-refresh
+# European rating feeders (Europa/Conference + 25 domestic leagues, one call
+# each): results only move Champions League ratings, so daily is enough.
+if [[ "$(date -u +%H)" == "02" ]]; then
+  run ingest_euro_feeders $PY src/ingest_fixtures.py --league-ids 3,848,61,94,88,144,203,179,218,207,345,197,210,333,119,103,113,106,286,318,383,332,389,419,116,283,235 --seasons 2026 --force-refresh
+fi
 # All-competition fixtures (cups, Europe) for rest/congestion: ~110 calls,
 # so twice a day rather than hourly.
 if [[ "$(date -u +%H)" =~ ^(03|15)$ ]]; then
@@ -56,8 +61,11 @@ fi
 # played fixture; cached ones are skipped): daily, so missing-player and
 # expected-XI features stay current on the server.
 if [[ "$(date -u +%H)" == "05" ]]; then
-  run ingest_injuries $PY src/ingest_injuries.py --league-ids 39,140,135,78,253 --seasons 2026 --force-refresh
-  run ingest_lineups  $PY src/ingest_lineups.py --league-ids 39,140,135,78,253 --seasons 2026
+  run ingest_injuries $PY src/ingest_injuries.py --league-ids 39,140,135,78,253,2 --seasons 2026 --force-refresh
+  run ingest_lineups  $PY src/ingest_lineups.py --league-ids 39,140,135,78,253,2 --seasons 2026
+  # Shot statistics (1 call per newly played fixture; cached ones are
+  # skipped): the sot/possession/xG features were going stale without this.
+  run ingest_stats    $PY src/ingest_fixture_statistics.py --league-ids 39,140,135,78,253,2 --seasons 2026
 fi
 run predict         $PY src/predict.py --horizon-days 8 > /dev/null
 run lock            $PY src/lifecycle.py lock --window-minutes 70

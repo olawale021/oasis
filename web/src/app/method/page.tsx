@@ -29,7 +29,7 @@ export default async function MethodPage() {
         <span className="font-mono text-label font-semibold uppercase text-[var(--oasis-text-dim)]">Method</span>
         <h1 className="text-display font-extrabold">How the forecasts are made</h1>
         <p className="max-w-[62ch] text-lead text-[var(--oasis-text-muted)]">
-          RealscoresAI publishes calibrated pre-match probabilities for five leagues. Every number on the site comes from the same
+          RealscoresAI publishes calibrated pre-match probabilities for six leagues: the Premier League, La Liga, Serie A, Bundesliga, MLS and the Champions League. Every number on the site comes from the same
           pipeline described here, is tested on seasons the model never saw, and is frozen before kickoff so it can be
           judged afterwards. Probabilistic forecasts, not betting advice.
         </p>
@@ -39,7 +39,9 @@ export default async function MethodPage() {
         <p>
           Results, fixtures, injuries, confirmed lineups, match statistics and bookmaker odds come from API-Football,
           from 2017 onwards for the Premier League, La Liga, Serie A, Bundesliga and MLS, plus the second divisions so
-          promoted clubs arrive with history. Fixtures in every competition, including cups and European ties, are
+          promoted clubs arrive with history. The Champions League model rates clubs on one pooled European stream:
+          the four tracked leagues, the three UEFA competitions and the domestic leagues of regular participants,
+          so cross-league ties calibrate every league against the others. Fixtures in every competition, including cups and European ties, are
           pulled per club so rest and congestion see midweek games. Squad market values come from the public
           Transfermarkt datasets and are computed as of each kickoff, so no later valuation leaks in.
         </p>
@@ -59,7 +61,7 @@ export default async function MethodPage() {
       <Section title="3 · Models">
         <p>
           The outcome probabilities are a weighted blend of two multinomial logistic regressions per league: one fit on
-          that league alone, one pooled across all five with league indicators, each with season decay and a
+          that league alone, one pooled across all six with league indicators, each with season decay and a
           temperature fitted on a held-out season. In La Liga a random forest on the same features takes part of the
           weight. Scorelines, over 2.5 and both-teams-score come from a separate Dixon-Coles Poisson model. The linear
           models are what let each match page show which factors moved the forecast.

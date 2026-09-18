@@ -113,7 +113,7 @@ def main() -> None:
     decisions_in = latest_decisions()
 
     league_samples, league_feeders, league_specs = {}, {}, {}
-    for code in leagues.TARGETS:  # the pooled global fit always uses all five
+    for code in leagues.pooled_targets():  # the pooled global fit always uses all five
         _, samples = outcome_train.load_enriched_buckets(leagues.target_config(code), score_feeders=True)
         league_samples[code] = [s for s in samples if not s.get("tier2")]
         league_feeders[code] = [s for s in samples if s.get("tier2")]
@@ -125,9 +125,9 @@ def main() -> None:
     for T in FOLD_TEST_SEASONS:
         split_args = {"train_seasons": list(range(2017, T - 2)), "validate_season": T - 2,
                       "calibrate_season": T - 1, "test_season": T}
-        league_buckets = {code: backtest_common.split_by_season(league_samples[code], **split_args) for code in leagues.TARGETS}
-        pooled = {k: [s for code in leagues.TARGETS for s in league_buckets[code][k]] for k in ("train", "validate", "calibrate", "test")}
-        pooled["train"] += [f for code in leagues.TARGETS for f in league_feeders[code] if f["season"] in split_args["train_seasons"]]
+        league_buckets = {code: backtest_common.split_by_season(league_samples[code], **split_args) for code in leagues.pooled_targets()}
+        pooled = {k: [s for code in leagues.pooled_targets() for s in league_buckets[code][k]] for k in ("train", "validate", "calibrate", "test")}
+        pooled["train"] += [f for code in leagues.pooled_targets() for f in league_feeders[code] if f["season"] in split_args["train_seasons"]]
         global_artifact = outcome_train.build_artifact(GLOBAL_FEATS, pooled, decay=GLOBAL_DECAY)
         global_vec = fit_vector_scaling(global_artifact, pooled["calibrate"]) if any(decisions_in[c].get("use_vec") for c in codes) else None
         gforest_artifact = forest_train.build_forest_artifact(list(GLOBAL_FEATS), pooled, decay=GLOBAL_DECAY)
@@ -192,9 +192,9 @@ def main() -> None:
     shipped = {}
     if args.ship and any(d["forest_endorsed"] for d in decisions.values()):
         import model_registry
-        final_buckets = {code: backtest_common.split_by_season(league_samples[code]) for code in leagues.TARGETS}
-        pooled_final = {k: [s for code in leagues.TARGETS for s in final_buckets[code][k]] for k in ("train", "validate", "calibrate", "test")}
-        pooled_final["train"] += [f for code in leagues.TARGETS for f in league_feeders[code] if f["season"] in backtest_common.TRAIN_SEASONS]
+        final_buckets = {code: backtest_common.split_by_season(league_samples[code]) for code in leagues.pooled_targets()}
+        pooled_final = {k: [s for code in leagues.pooled_targets() for s in final_buckets[code][k]] for k in ("train", "validate", "calibrate", "test")}
+        pooled_final["train"] += [f for code in leagues.pooled_targets() for f in league_feeders[code] if f["season"] in backtest_common.TRAIN_SEASONS]
         global_final = outcome_train.build_artifact(GLOBAL_FEATS, pooled_final, decay=GLOBAL_DECAY)
         global_final_vec = fit_vector_scaling(global_final, pooled_final["calibrate"])
         gforest_final = forest_train.build_forest_artifact(list(GLOBAL_FEATS), pooled_final, decay=GLOBAL_DECAY)

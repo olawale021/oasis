@@ -21,6 +21,7 @@ import backtest_common
 import config
 import db
 import elo as elo_module
+import euro
 import features as features_module
 import goals_model
 import leagues
@@ -112,7 +113,7 @@ def predict_league(conn, league_cfg: dict, horizon_days: int, fixture_ids: set =
     target_id, feeder_id = league_cfg["league_id"], league_cfg["feeder_id"]
     web_code = league_cfg["web_code"]
 
-    league_ids = [target_id] + ([feeder_id] if feeder_id else [])
+    league_ids = leagues.pool_ids(league_cfg)
     played = matches_module.load_matches(conn, league_ids, PREDICT_SEASONS)
     transitions = (
         promotion.compute_transitions(conn, target_id, feeder_id, PREDICT_SEASONS) if feeder_id else {}
@@ -120,6 +121,8 @@ def predict_league(conn, league_cfg: dict, horizon_days: int, fixture_ids: set =
     rating_params = ratings_module.get_params(league_cfg["code"] if "code" in league_cfg else next(c for c, v in leagues.TARGETS.items() if v["league_id"] == target_id), played)
     schedule = matches_module.load_schedule_matches(conn, PREDICT_SEASONS)
     elo, store, applied, pi, berrar, context = replay_state(played, transitions, rating_params, schedule)
+    ties = euro.TieIndex()
+    ties.load(played)
 
     stat_rows = db.get_fixture_statistics_by_league(conn, [target_id])
     shot_store = richer_features.ShotStatsStore()
@@ -152,7 +155,7 @@ def predict_league(conn, league_cfg: dict, horizon_days: int, fixture_ids: set =
     outcome = outcome_model.load_model(outcome_path)
     goals = goals_model.load_model(goals_path)
 
-    upcoming = load_upcoming(conn, target_id, horizon_days)
+    upcoming = [r for r in load_upcoming(conn, target_id, horizon_days) if leagues.is_scored_round(target_id, r["round"])]
     if fixture_ids is not None:
         upcoming = [r for r in upcoming if r["fixture_id"] in fixture_ids]
     market = db.get_market_outcome_probs(conn, [r["fixture_id"] for r in upcoming])
@@ -168,7 +171,7 @@ def predict_league(conn, league_cfg: dict, horizon_days: int, fixture_ids: set =
         promotion.apply_pending_transition(elo, home_id, season, transitions, applied)
         promotion.apply_pending_transition(elo, away_id, season, transitions, applied)
 
-        feats = store.match_features(home_id, away_id, before, elo, neutral=False)
+        feats = store.match_features(home_id, away_id, before, elo, neutral=matches_module.is_neutral_round(row["round"]))
         feats.update(leagues.league_dummies(target_id))
         gh_hat, ga_hat = berrar.pred_goals(home_id, away_id)
         feats["pi_pred_gd"] = pi.pred_gd(home_id, away_id)
@@ -176,6 +179,8 @@ def predict_league(conn, league_cfg: dict, horizon_days: int, fixture_ids: set =
         feats["ber_ga"] = ga_hat
         feats.update(context.features(target_id))
         feats["tier2"] = 0.0
+        feats["ko_stage"] = 1.0 if leagues.is_knockout_round(target_id, row["round"]) else 0.0
+        feats.update(ties.features(target_id, season, row["round"], home_id, away_id, before))
         feats.update(
             richer_features.richer_match_features(
                 row["fixture_id"], home_id, away_id, before, shot_store, missing_index, squad_store, value_store, strength_store
@@ -254,7 +259,7 @@ def run_predictions(horizon_days: int = DEFAULT_HORIZON_DAYS, quiet: bool = Fals
     predictions = []
     models = {}
     registry = {}
-    for code in leagues.TARGETS:
+    for code in leagues.live_targets():
         league_cfg = leagues.target_config(code)
         try:
             league_preds, model_info, registry_info = predict_league(conn, league_cfg, horizon_days, fixture_ids, stage)

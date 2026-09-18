@@ -1,4 +1,4 @@
-export type LeagueCode = "EPL" | "LAL" | "SEA" | "BUN" | "MLS";
+export type LeagueCode = "EPL" | "LAL" | "SEA" | "BUN" | "MLS" | "UCL";
 export type LeagueFilter = "ALL" | LeagueCode;
 export type Confidence = "HIGH" | "MED" | "LOW";
 

@@ -115,7 +115,7 @@ export async function handleUpdate(update: Record<string, unknown>, ctx: Ctx): P
     if (!parsed.arg) {
       const sub = await userForChat(env.kv, chat_id);
       if (sub) return say(`Welcome back. ${HELP}`);
-      await say("<b>RealscoresAI</b> — pre-match probabilities for five leagues, scored in public.\n\nYou can browse right away with the buttons below. Connect your account to unlock forecasts and get alerts.", MAIN_KEYBOARD);
+      await say("<b>RealscoresAI</b> — pre-match probabilities for six leagues, scored in public.\n\nYou can browse right away with the buttons below. Connect your account to unlock forecasts and get alerts.", MAIN_KEYBOARD);
       return say("Connect from your account page — the button there opens this chat and links it in one tap.", CONNECT_BUTTON);
     }
     if (!env.token) return say("Linking is not configured on this deployment.");

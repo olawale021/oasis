@@ -49,10 +49,31 @@ MAX_STALE_DAYS = 540
 MIN_PLAYERS = 15  # fewer valued players = coverage gap (promoted club): treat as unknown, not as a tiny squad
 FIRST_SEASON = 2017
 HORIZON_DAYS = 30
-COUNTRY_BY_LEAGUE = {39: "England", 140: "Spain", 135: "Italy", 78: "Germany", 253: "United States"}
+# Domestic league -> Transfermarkt country_name: gives every club in that
+# league a country to match within. The five live leagues plus the
+# Champions League pool's domestic feeders that the dataset profiles.
+COUNTRY_BY_LEAGUE = {
+    39: "England", 140: "Spain", 135: "Italy", 78: "Germany", 253: "United States",
+    61: "France", 94: "Portugal", 88: "Netherlands", 144: "Belgium", 203: "Türkiye", 179: "Scotland",
+    218: "Austria", 207: "Switzerland", 345: "Czech Republic", 197: "Greece", 210: "Croatia",
+    333: "Ukraine", 119: "Denmark", 103: "Norway", 113: "Sweden", 106: "Poland", 286: "Serbia",
+    283: "Romania", 235: "Russia",
+}
+# Leagues whose fixtures get a squad value per side (the prediction targets).
+VALUED_LEAGUE_IDS = [39, 140, 135, 78, 253, 2]
+# Clubs in these leagues must match (a promoted club silently dropping out
+# is a bug). A club seen only in the Champions League from an unprofiled
+# country (Cyprus, Kazakhstan, ...) is reported and left unvalued instead.
+STRICT_LEAGUE_IDS = [39, 140, 135, 78, 253]
 
 # API-Football team_id -> Transfermarkt club_id, where names do not line up.
-OVERRIDES = {}
+OVERRIDES = {
+    94: 273,     # Rennes -> Stade Rennais FC
+    560: 62,     # Slavia Praha -> SK Slavia Prague
+    598: 159,    # FK Crvena Zvezda -> Red Star Belgrade
+    1013: 504,   # Grasshoppers -> Grasshopper Club Zurich
+    1004: 10484, # Kasımpaşa -> Kasimpasa
+}
 
 GENERIC = {
     "fc", "cf", "sc", "afc", "ac", "as", "ss", "us", "ssc", "ud", "cd", "rcd", "sd", "club", "de", "del", "di", "e", "v",
@@ -134,7 +155,19 @@ def live_teams(conn) -> dict:
             (league_id, FIRST_SEASON),
         ).fetchall()
         for r in rows:
-            out[r["team_id"]] = {"name": r["name"], "country": country}
+            out[r["team_id"]] = {"name": r["name"], "country": country, "strict": league_id in STRICT_LEAGUE_IDS}
+    # Clubs only ever seen in a valued competition (Champions League sides
+    # from unprofiled countries): no country, matched in the fallback pass.
+    for league_id in VALUED_LEAGUE_IDS:
+        if league_id in COUNTRY_BY_LEAGUE:
+            continue
+        rows = conn.execute(
+            "SELECT DISTINCT t.team_id, t.name FROM teams t JOIN fixtures f"
+            " ON t.team_id IN (f.home_team_id, f.away_team_id) WHERE f.league_id = ? AND f.season >= ?",
+            (league_id, FIRST_SEASON),
+        ).fetchall()
+        for r in rows:
+            out.setdefault(r["team_id"], {"name": r["name"], "country": "", "strict": False})
     return out
 
 
@@ -184,7 +217,7 @@ def fixtures_to_value(conn) -> list:
     rows = conn.execute(
         "SELECT fixture_id, kickoff_utc, home_team_id, away_team_id FROM fixtures"
         " WHERE league_id IN ({}) AND season >= ? AND kickoff_utc <= ? ORDER BY kickoff_utc".format(
-            ", ".join(str(i) for i in COUNTRY_BY_LEAGUE)),
+            ", ".join(str(i) for i in VALUED_LEAGUE_IDS)),
         (FIRST_SEASON, (now + timedelta(days=HORIZON_DAYS)).isoformat()),
     ).fetchall()
     return [dict(r) for r in rows]
@@ -254,8 +287,8 @@ def main() -> None:
             if not how.startswith("name 1.00"):
                 print(f"  {team_id:>5} {teams[team_id]['name']:<28} -> {cname:<32} [{how}]", file=sys.stderr)
         return
-    if unmatched:
-        raise SystemExit("unmatched clubs -- add OVERRIDES entries (team_id -> tm club_id) and re-run")
+    if any(teams[t]["strict"] for t, _, _ in unmatched):
+        raise SystemExit("unmatched live-league clubs -- add OVERRIDES entries (team_id -> tm club_id) and re-run")
 
     fixtures = fixtures_to_value(conn)
     rows = compute_values(fixtures, mapping)

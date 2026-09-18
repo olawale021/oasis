@@ -8,7 +8,7 @@ import { getViewer } from "@/lib/viewer";
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = {
   title: "RealscoresAI — Lifetime access",
-  description: "One payment for every upcoming forecast across five leagues. Founding-member pricing, quantity capped.",
+  description: "One payment for every upcoming forecast across six leagues. Founding-member pricing, quantity capped.",
 };
 
 /** Set when Stripe checkout opens. Until then the page says so instead of

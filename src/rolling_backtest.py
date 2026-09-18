@@ -45,8 +45,8 @@ def deployed_rows(code: str) -> list:
     try:
         import global_train
         spec = global_train.deployed_league_spec(code)
-    except Exception:
-        return []
+    except (Exception, SystemExit):
+        return []  # no registered release yet (a new target before its first ship)
     feats, decay = spec["features"], spec["decay"]
     rows = [{"name": "deployed", "kind": "logistic", "feats": feats, "decay": decay}]
     if any(f in ALLSCHED for f in feats):
@@ -272,6 +272,32 @@ def main() -> None:
     ).fetchone()[0]
     enriched = n_stats > 1000
     rows = rows_for(enriched) + deployed_rows(args.league)
+    if league_cfg["league_id"] in leagues.EURO_COMPETITION_IDS:
+        # Knockout-tie flag: only varies in the European competitions.
+        rows += [
+            {"name": "base_ratings_ko", "kind": "logistic", "feats": outcome_train.BASE_EIGHT + outcome_train.RATING3 + outcome_train.KO, "decay": None},
+            {"name": "base_kitchen_ko", "kind": "logistic", "feats": outcome_train.BASE_EIGHT + outcome_train.NEW3 + outcome_train.RATING3 + outcome_train.GHOST + outcome_train.KO, "decay": None},
+            {"name": "ratings_core_ko", "kind": "logistic", "feats": outcome_train.RATINGS_CORE + outcome_train.KO, "decay": None},
+            # Compact rating-only rungs: the harness showed league-relative
+            # form features hurt across leagues of different strength.
+            {"name": "elo_close", "kind": "logistic", "feats": ["elo_diff", "elo_closeness"], "decay": None},
+            {"name": "elo_close_ko", "kind": "logistic", "feats": ["elo_diff", "elo_closeness"] + outcome_train.KO, "decay": None},
+            {"name": "elo_sched", "kind": "logistic", "feats": ["elo_diff", "elo_closeness", "sched_strength_diff"], "decay": None},
+            {"name": "elo_ratings", "kind": "logistic", "feats": ["elo_diff", "elo_closeness"] + outcome_train.RATING3, "decay": None},
+            # Transfermarkt squad value: the one prior comparable across leagues.
+            {"name": "elo_value", "kind": "logistic", "feats": ["elo_diff", "elo_closeness"] + outcome_train.VALUE, "decay": None},
+            {"name": "elo_value_ko", "kind": "logistic", "feats": ["elo_diff", "elo_closeness"] + outcome_train.VALUE + outcome_train.KO, "decay": None},
+            {"name": "elo_value_inj", "kind": "logistic", "feats": ["elo_diff", "elo_closeness", "missing_players_diff"] + outcome_train.VALUE, "decay": None},
+            {"name": "base_value", "kind": "logistic", "feats": outcome_train.BASE_EIGHT + outcome_train.VALUE, "decay": None},
+            {"name": "ratings_core_value", "kind": "logistic", "feats": outcome_train.RATINGS_CORE + outcome_train.VALUE, "decay": None},
+            # Second-leg aggregate state (euro.py): return legs only.
+            {"name": "elo_value_leg2", "kind": "logistic", "feats": outcome_train.ELO_VALUE + outcome_train.LEG2, "decay": None},
+            {"name": "elo_value_ko_leg2", "kind": "logistic", "feats": outcome_train.ELO_VALUE + outcome_train.KO + outcome_train.LEG2, "decay": None},
+            # Enriched twins once shot stats + lineups are ingested (0 otherwise).
+            {"name": "elo_value_sot", "kind": "logistic", "feats": outcome_train.ELO_VALUE + ["sot_diff", "possession_diff"], "decay": None},
+            {"name": "elo_value_squad", "kind": "logistic", "feats": outcome_train.ELO_VALUE + ["squad_disruption_diff", "missing_players_diff"], "decay": None},
+            {"name": "elo_value_xg", "kind": "logistic", "feats": outcome_train.ELO_VALUE + ["xg_diff", "xga_diff"], "decay": None},
+        ]
     if args.only:
         keep = {n.strip() for n in args.only.split(",")}
         rows = [r for r in rows if r["name"] in keep]

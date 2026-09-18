@@ -65,7 +65,7 @@ export interface LiveData {
   goals_skill?: GoalsSkill | null;
 }
 
-export const LEAGUE_CODES: LeagueCode[] = ["EPL", "LAL", "SEA", "BUN", "MLS"];
+export const LEAGUE_CODES: LeagueCode[] = ["EPL", "LAL", "SEA", "BUN", "MLS", "UCL"];
 
 export const LEAGUE_NAMES: Record<LeagueFilter, string> = {
   ALL: "All leagues",
@@ -74,6 +74,7 @@ export const LEAGUE_NAMES: Record<LeagueFilter, string> = {
   SEA: "Serie A",
   BUN: "Bundesliga",
   MLS: "MLS",
+  UCL: "Champions League",
 };
 
 export function getMatchById(live: LiveData, id: number): MatchRecord | undefined {

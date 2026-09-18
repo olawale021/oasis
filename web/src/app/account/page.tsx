@@ -52,7 +52,7 @@ export default async function AccountPage() {
           </span>
           <span className="text-[var(--oasis-text-muted)]">
             {premium
-              ? "All five leagues, every upcoming prediction, full explanations."
+              ? "All six leagues, every upcoming prediction, full explanations."
               : "Two highest-confidence predictions per day. Finished matches are always open."}
           </span>
         </div>

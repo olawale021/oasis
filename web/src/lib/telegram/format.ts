@@ -33,7 +33,7 @@ function fixtureLine(m: MatchRecord): string {
  * league and a blank line between groups: readable on a phone, no code
  * repeated on every row. */
 function byLeague<T extends { lg: LeagueCode }>(rows: T[], line: (r: T) => string): string {
-  const order: LeagueCode[] = ["EPL", "LAL", "SEA", "BUN", "MLS"];
+  const order: LeagueCode[] = ["EPL", "LAL", "SEA", "BUN", "MLS", "UCL"];
   const groups: string[] = [];
   for (const lg of order) {
     const rs = rows.filter((r) => r.lg === lg);

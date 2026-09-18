@@ -205,7 +205,7 @@ def main() -> None:
     target_id, feeder_id = league_cfg["league_id"], league_cfg["feeder_id"]
 
     conn = db.get_connection()
-    league_ids = [target_id] + ([feeder_id] if feeder_id else [])
+    league_ids = leagues.pool_ids(league_cfg)
     matches = matches_module.load_matches(conn, league_ids)
     transitions = (
         promotion.compute_transitions(conn, target_id, feeder_id, backtest_common.ALL_SEASONS)

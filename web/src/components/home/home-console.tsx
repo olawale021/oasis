@@ -74,7 +74,7 @@ export function HomeConsole({ live, tier, telegram = null }: { live: LiveData; t
   }, [derived, league, confirmedOnly, highConfOnly, edgeOnly, dayTab]);
 
   const leagueCounts = useMemo(() => {
-    const counts: Record<LeagueFilter, number> = { ALL: 0, EPL: 0, LAL: 0, SEA: 0, BUN: 0, MLS: 0 };
+    const counts: Record<LeagueFilter, number> = { ALL: 0, EPL: 0, LAL: 0, SEA: 0, BUN: 0, MLS: 0, UCL: 0 };
     if (isResults) {
       for (const r of live.recent_results) if (r.locked) { counts.ALL += 1; counts[r.lg] += 1; }
     } else {

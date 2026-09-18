@@ -51,6 +51,7 @@ back if you want to keep its locked/settled ledger.
 
 - Code change to the pipeline: `git push`, then `ssh oasis@<ip> 'cd oasis && git pull'`.
 - Retrained models: `./scripts/server/push-models.sh oasis@<ip>` (models + registry + reports, then a chain run).
+- Champions League history (once, before the first push of `outcome_model_ucl*.json`): `./scripts/server/backfill-euro.sh oasis@<ip>` -- UEFA competitions from 2010, 25 domestic feeder leagues from 2014, injuries, squad values (~400 calls).
 - Check health: the /admin page, or `ssh oasis@<ip> 'cat oasis/data/status/predict_status.json'`.
 - Fresh DB for a refit: `./scripts/server/pull-db.sh oasis@<ip>` (installs the newest nightly backup locally).
 - Secrets live in `oasis/.env` (API-Football) and `oasis/web/.env`

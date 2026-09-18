@@ -310,7 +310,7 @@ def build_bookmakers(conn) -> list:
 
 def build_standings(conn, league_cfg: dict) -> list:
     target_id, feeder_id = league_cfg["league_id"], league_cfg["feeder_id"]
-    league_ids = [target_id] + ([feeder_id] if feeder_id else [])
+    league_ids = leagues.pool_ids(league_cfg)
     seasons = list(range(backtest_common.HISTORY_START, CURRENT_SEASON + 1))
     played_matches = matches_module.load_matches(conn, league_ids, seasons)
     transitions = (
@@ -318,8 +318,22 @@ def build_standings(conn, league_cfg: dict) -> list:
     )
     elo, _, applied, _, _, _ = predict.replay_state(played_matches, transitions)
 
-    rosters = promotion.season_rosters(conn, target_id, [CURRENT_SEASON])
-    team_ids = rosters.get(CURRENT_SEASON, [])
+    euro = target_id in leagues.EURO_COMPETITION_IDS
+    if euro:
+        # League-phase table only: the roster is whoever has a league-phase
+        # fixture this season; qualifiers and knockout ties carry no points.
+        rows = conn.execute(
+            "SELECT round, home_team_id, away_team_id FROM fixtures WHERE league_id = ? AND season = ?",
+            (target_id, CURRENT_SEASON),
+        ).fetchall()
+        team_ids = sorted({
+            t for r in rows
+            if leagues.is_scored_round(target_id, r["round"]) and not leagues.is_knockout_round(target_id, r["round"])
+            for t in (r["home_team_id"], r["away_team_id"])
+        })
+    else:
+        rosters = promotion.season_rosters(conn, target_id, [CURRENT_SEASON])
+        team_ids = rosters.get(CURRENT_SEASON, [])
     names = {
         row["team_id"]: row["name"]
         for row in conn.execute("SELECT team_id, name FROM teams").fetchall()
@@ -329,11 +343,15 @@ def build_standings(conn, league_cfg: dict) -> list:
     for m in played_matches:
         if m["league_id"] != target_id or m["season"] != CURRENT_SEASON:
             continue
+        if euro and (not leagues.is_scored_round(target_id, m.get("round")) or leagues.is_knockout_round(target_id, m.get("round"))):
+            continue
         for team, gf, ga in (
             (m["home_team_id"], m["home_goals"], m["away_goals"]),
             (m["away_team_id"], m["away_goals"], m["home_goals"]),
         ):
-            s = stats[team]
+            s = stats.get(team)
+            if s is None:
+                continue
             s["played"] += 1
             s["gf"] += gf
             s["ga"] += ga
@@ -385,7 +403,7 @@ def build_backtest_sections(conn) -> dict:
     versions = {}
     retro_probs = {}
 
-    for code, cfg in leagues.TARGETS.items():
+    for code, cfg in leagues.live_targets().items():
         outcome_path = config.MODELS_DIR / cfg["outcome_artifact"]
         if not outcome_path.exists():
             continue
@@ -630,7 +648,7 @@ def build_experiments() -> list:
     out = []
     for key, label, cand, feature, blurb in PAIRED_EXPERIMENTS:
         rows = []
-        for code, cfg in leagues.TARGETS.items():
+        for code, cfg in leagues.live_targets().items():
             picked = None
             for path in sorted(config.REPORTS_DIR.glob(f"rolling_backtest_{code}_*.json"), reverse=True):
                 rep = json.loads(path.read_text())
@@ -803,7 +821,7 @@ def build_model_releases() -> list:
     registry (PRD 14 'model version history' on the performance page)."""
     registry = json.loads((config.MODELS_DIR / "registry.json").read_text())
     out = []
-    for code, cfg in leagues.TARGETS.items():
+    for code, cfg in leagues.live_targets().items():
         role = cfg["outcome_artifact"].rsplit(".", 1)[0]
         entries = [e for e in registry if e["role"] == role]
         deployed = next((e for e in entries if e["deployed"]), None)
@@ -856,7 +874,7 @@ def main() -> None:
         print(f"{n_final} fixture(s) showing final-stage (confirmed lineup) forecasts")
 
     live_codes = set(predictions["models"].keys())
-    target_ids = [cfg["league_id"] for cfg in leagues.TARGETS.values()]
+    target_ids = [cfg["league_id"] for cfg in leagues.live_targets().values()]
 
     missing_index = richer_features.MissingPlayersIndex()
     missing_index.load(db.get_missing_player_counts(conn, target_ids))
@@ -864,7 +882,7 @@ def main() -> None:
     # Factors on match rows must come from the artifact that actually made
     # the predictions -- the *_live refold when present.
     outcome_models = {}
-    for code, cfg in leagues.TARGETS.items():
+    for code, cfg in leagues.live_targets().items():
         live_path = config.MODELS_DIR / cfg["outcome_artifact"].replace(".json", "_live.json")
         path = live_path if live_path.exists() else config.MODELS_DIR / cfg["outcome_artifact"]
         if path.exists():
@@ -876,12 +894,12 @@ def main() -> None:
     rounds = fixture_rounds(conn, fixture_ids)
 
     standings = {}
-    for code, cfg in leagues.TARGETS.items():
+    for code, cfg in leagues.live_targets().items():
         standings[cfg["web_code"]] = build_standings(conn, {"code": code, **cfg}) if cfg["web_code"] in live_codes else []
 
     league_perf = {
         cfg["web_code"]: backtest["league_perf"].get(cfg["web_code"], {"ll": "—", "base": "—", "mkt": "—"})
-        for cfg in leagues.TARGETS.values()
+        for cfg in leagues.live_targets().values()
     }
 
     matches = build_matches(predictions, missing_index._counts, outcome_models, rounds)
@@ -898,7 +916,7 @@ def main() -> None:
                 cfg["web_code"]: model_registry.verify_deployed(
                     config.MODELS_DIR / cfg["outcome_artifact"].replace(".json", "_live.json")
                 )["version"]
-                for cfg in leagues.TARGETS.values()
+                for cfg in leagues.live_targets().values()
                 if (config.MODELS_DIR / cfg["outcome_artifact"].replace(".json", "_live.json")).exists()
             },
         },

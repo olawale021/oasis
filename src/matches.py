@@ -11,7 +11,10 @@ def is_neutral_round(round_text: str) -> bool:
     -- low-stakes, ~1 match/season, feeder-league only."""
     if not round_text:
         return False
-    text = round_text.lower()
+    text = round_text.lower().strip()
+    # European finals are single matches at a pre-chosen neutral venue.
+    if text == "final":
+        return True
     return "play-off" in text and "final" in text
 
 
@@ -38,6 +41,7 @@ def load_matches(conn, league_ids: list, seasons: list = None) -> list:
                 "home_goals": row["home_goals"],
                 "away_goals": row["away_goals"],
                 "neutral": is_neutral_round(row["round"]),
+                "round": row["round"],
             }
         )
     matches.sort(key=lambda m: m["kickoff_utc"])

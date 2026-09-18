@@ -1,4 +1,5 @@
 import elo as elo_module
+import euro
 import features as features_module
 import leagues
 import promotion
@@ -55,6 +56,8 @@ def collect_samples(matches: list, transitions: dict, use_mov: bool = True, targ
     pi, berrar = ratings_module.build_stores(rating_params)
     context = features_module.LeagueContext()
     feeder_id = leagues.TARGETS[code]["feeder_id"]
+    ties = euro.TieIndex()
+    ties.load(matches)
 
     applied = set()
     samples = []
@@ -69,7 +72,8 @@ def collect_samples(matches: list, transitions: dict, use_mov: bool = True, targ
         promotion.apply_pending_transition(elo, home_id, season, transitions, applied)
         promotion.apply_pending_transition(elo, away_id, season, transitions, applied)
 
-        is_target = match["league_id"] == target_league_id
+        # Champions League qualifiers update ratings but are never scored.
+        is_target = match["league_id"] == target_league_id and leagues.is_scored_round(match["league_id"], match.get("round"))
         is_feeder_row = score_feeders and feeder_id is not None and match["league_id"] == feeder_id
         eligible = (
             (is_target or is_feeder_row)
@@ -86,6 +90,9 @@ def collect_samples(matches: list, transitions: dict, use_mov: bool = True, targ
             feats["ber_ga"] = ga_hat
             feats.update(context.features(match["league_id"]))
             feats["tier2"] = 1.0 if is_feeder_row else 0.0
+            # Knockout tie (European competitions only; 0 for league rounds).
+            feats["ko_stage"] = 1.0 if leagues.is_knockout_round(match["league_id"], match.get("round")) else 0.0
+            feats.update(ties.features(match["league_id"], season, match.get("round"), home_id, away_id, before))
             samples.append(
                 {
                     "fixture_id": match["fixture_id"],

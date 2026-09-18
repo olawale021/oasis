@@ -107,6 +107,15 @@ def deployed_league_spec(code: str) -> dict:
     return {"features": entry["features"], "decay": (entry.get("parameters") or {}).get("decay"), "version": entry["version"]}
 
 
+def league_spec_or_base(code: str) -> dict:
+    """Deployed spec, or the fixtures+injuries base set for a target that
+    has never shipped (its league-only row is then that base model)."""
+    try:
+        return deployed_league_spec(code)
+    except SystemExit:
+        return {"features": list(outcome_train.BASE_EIGHT), "decay": None, "version": "base8 (unreleased)"}
+
+
 def score_probs(samples: list, artifact: dict) -> list:
     return [outcome_model.predict_proba(s, artifact) for s in samples]
 
@@ -141,24 +150,27 @@ def metrics_of(probs: list, samples: list) -> dict:
 def main() -> None:
     parser = argparse.ArgumentParser(description="Global model + per-league blend (PRD 9.2/9.4).")
     parser.add_argument("--dry-run", action="store_true", help="Run the harness, ship nothing")
+    parser.add_argument("--include", type=str, default="", help="extra target codes to pool and evaluate (e.g. ucl)")
+    parser.add_argument("--ship-only", type=str, default="", help="write/register blend artifacts for these codes only (others: harness only)")
     args = parser.parse_args()
     started = datetime.now(timezone.utc)
+    codes = list(leagues.pooled_targets()) + [c for c in args.include.split(",") if c]
 
     league_samples = {}
     league_feeders = {}
     league_specs = {}
-    for code in leagues.TARGETS:
+    for code in codes:
         _, samples = outcome_train.load_enriched_buckets(leagues.target_config(code), score_feeders=True)
         league_samples[code] = [s for s in samples if not s.get("tier2")]
         league_feeders[code] = [s for s in samples if s.get("tier2")]
-        league_specs[code] = deployed_league_spec(code)
+        league_specs[code] = league_spec_or_base(code)
         print(
             f"loaded {code}: {len(league_samples[code])} target + {len(league_feeders[code])} feeder samples "
             f"· league model {league_specs[code]['version']}"
         )
 
     # ---- walk-forward harness ----
-    per_league_folds = {code: [] for code in leagues.TARGETS}
+    per_league_folds = {code: [] for code in codes}
     for T in FOLD_TEST_SEASONS:
         split_args = {
             "train_seasons": list(range(2017, T - 2)),
@@ -167,23 +179,23 @@ def main() -> None:
             "test_season": T,
         }
         league_buckets = {
-            code: backtest_common.split_by_season(league_samples[code], **split_args) for code in leagues.TARGETS
+            code: backtest_common.split_by_season(league_samples[code], **split_args) for code in codes
         }
         pooled = {
-            k: [s for code in leagues.TARGETS for s in league_buckets[code][k]]
+            k: [s for code in codes for s in league_buckets[code][k]]
             for k in ("train", "validate", "calibrate", "test")
         }
         # Feeder-division rows enter the pooled FIT only (train bucket, within
         # the fold's train window) -- never validate/calibrate/test, which
         # stay target-league-only so per-league evaluation is uncontaminated.
         pooled["train"] = pooled["train"] + [
-            f for code in leagues.TARGETS for f in league_feeders[code]
+            f for code in codes for f in league_feeders[code]
             if f["season"] in split_args["train_seasons"]
         ]
         global_artifact = outcome_train.build_artifact(GLOBAL_FEATS, pooled, decay=GLOBAL_DECAY)
         global_artifact_vec = fit_vector_scaling(global_artifact, pooled["calibrate"])
 
-        for code in leagues.TARGETS:
+        for code in codes:
             buckets = league_buckets[code]
             if not buckets["test"]:
                 continue
@@ -244,14 +256,14 @@ def main() -> None:
     shipped = {}
     if not args.dry_run:
         final_league_buckets = {
-            code: backtest_common.split_by_season(league_samples[code]) for code in leagues.TARGETS
+            code: backtest_common.split_by_season(league_samples[code]) for code in codes
         }
         pooled_final = {
-            k: [s for code in leagues.TARGETS for s in final_league_buckets[code][k]]
+            k: [s for code in codes for s in final_league_buckets[code][k]]
             for k in ("train", "validate", "calibrate", "test")
         }
         pooled_final["train"] = pooled_final["train"] + [
-            f for code in leagues.TARGETS for f in league_feeders[code]
+            f for code in codes for f in league_feeders[code]
             if f["season"] in backtest_common.TRAIN_SEASONS
         ]
         global_final = outcome_train.build_artifact(GLOBAL_FEATS, pooled_final, decay=GLOBAL_DECAY)
@@ -275,8 +287,12 @@ def main() -> None:
         model_registry.register(global_path, deployed=True, notes="PRD 9.2 pooled global model (blend component)")
         print(f"wrote {global_path}: pooled test_log_loss={gm['log_loss']:.4f}")
 
+        ship_codes = {c for c in args.ship_only.split(",") if c}
         for code, decision in decisions.items():
             if not decision["blend_endorsed"]:
+                continue
+            if ship_codes and code not in ship_codes:
+                print(f"{code}: blend endorsed but not in --ship-only; evaluation artifact left as is")
                 continue
             cfg = leagues.target_config(code)
             spec = league_specs[code]

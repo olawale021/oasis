@@ -25,7 +25,7 @@ def target_fixtures(conn, horizon_days: int) -> list:
     horizon, plus anything locked (so a fixture graded at lock always has
     its context frozen alongside). Returns (fixture_id, kickoff_utc, home, away)."""
     now = datetime.now(timezone.utc)
-    league_ids = [v["league_id"] for v in leagues.TARGETS.values()]
+    league_ids = [v["league_id"] for v in leagues.live_targets().values()]
     marks = ", ".join("?" for _ in league_ids)
     return conn.execute(
         f"""

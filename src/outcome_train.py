@@ -60,6 +60,8 @@ EW10_TRIO = ["ew10_form_diff", "ew10_gf_diff", "ew10_ga_diff"]
 # The literature's "ratings replace recency" thesis, as a compact set.
 RATINGS_CORE = ["elo_diff", "pi_pred_gd", "ber_gh", "ber_ga",
                 "rest_diff", "congestion_diff", "missing_players_diff", "sched_strength_diff"]
+# Knockout-tie flag (European competitions; 0 for every league round).
+KO = ["ko_stage"]
 
 
 def _swap(feats, old, new):
@@ -123,6 +125,13 @@ CANDIDATES += [(name + "_value", feats + VALUE) for name, feats in list(CANDIDAT
 # PL on the operator's call (2026-09-10).
 XI = ["xi_strength_diff"]
 BASE_CANDIDATES += [(name + "_xi", feats + XI) for name, feats in list(BASE_CANDIDATES)]
+# Champions League (2026-09-18 harness): league-relative form features hurt
+# across leagues of different strength; the pooled-Elo + squad-value pair is
+# the endorsed set (5-fold mean 0.9186 vs calibrated Elo 0.9289).
+ELO_VALUE = ["elo_diff", "elo_closeness"] + VALUE
+LEG2 = ["leg2", "leg2_agg_diff"]
+BASE_CANDIDATES += [("elo_value", ELO_VALUE), ("elo_value_ko", ELO_VALUE + KO), ("elo_value_leg2", ELO_VALUE + LEG2),
+                    ("elo_value_ko_leg2", ELO_VALUE + KO + LEG2)]
 CANDIDATES += [(name + "_xi", feats + XI) for name, feats in list(CANDIDATES)]
 
 DECAY_GRID = [None, 0.9, 0.8, 0.7]  # None = unweighted control; PRD 8.3 target is 0.8
@@ -284,7 +293,7 @@ def load_enriched_buckets(league_cfg: dict = None, score_feeders: bool = False):
     league_cfg = league_cfg or leagues.target_config("pl")
     target_id, feeder_id = league_cfg["league_id"], league_cfg["feeder_id"]
     conn = db.get_connection()
-    league_ids = [target_id] + ([feeder_id] if feeder_id else [])
+    league_ids = leagues.pool_ids(league_cfg)
     matches = matches_module.load_matches(conn, league_ids)
     transitions = (
         promotion.compute_transitions(conn, target_id, feeder_id, backtest_common.ALL_SEASONS)

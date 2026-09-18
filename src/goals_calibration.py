@@ -134,7 +134,7 @@ def main() -> None:
     report = {"generated_at": datetime.now(timezone.utc).isoformat(), "leagues": {}, "pooled": {}}
     pooled_fit = {"OU25": [], "BTTS": []}
     pooled_test = {"OU25": [], "BTTS": []}
-    for code in leagues.TARGETS:
+    for code in leagues.pooled_targets():
         try:
             buckets, cfg = league_samples(conn, code)
         except Exception as exc:

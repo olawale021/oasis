@@ -7,6 +7,7 @@ from pathlib import Path
 import api_client
 import config
 import db
+import leagues
 from ingest_fixtures import parse_seasons_arg
 
 DEFAULT_LEAGUE_IDS = [39]
@@ -71,7 +72,9 @@ def run_ingest(league_ids=None, seasons=None, force_refresh=False, db_path: Path
     db.init_db(conn)
     client = api_client.APIFootballClient()
 
-    fixtures = db.get_completed_fixtures(conn, league_ids, seasons)
+    # Champions League qualifiers are rating updates only, never scored: skip
+    # their per-fixture calls (about half the competition's fixtures).
+    fixtures = [r for r in db.get_completed_fixtures(conn, league_ids, seasons) if leagues.is_scored_round(r["league_id"], r["round"])]
     results = []
     warnings = []
     for i, row in enumerate(fixtures, 1):

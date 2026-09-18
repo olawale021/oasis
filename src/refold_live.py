@@ -62,8 +62,10 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="PRD 12.2 production refold onto the *_live serving track.")
     parser.add_argument("--tag", type=str, default="r26", help='Release generation tag, e.g. "r26w1"')
     parser.add_argument("--no-current", action="store_true", help="Exclude current-season played matches from the fit")
+    parser.add_argument("--include", type=str, default="", help="extra target codes to pool and ship live (e.g. ucl)")
     args = parser.parse_args()
     tag = args.tag
+    codes = list(leagues.pooled_targets()) + [c for c in args.include.split(",") if c]
 
     started = datetime.now(timezone.utc)
     blend_ws = latest_blend_ws()
@@ -73,7 +75,7 @@ def main() -> None:
     league_buckets = {}
     league_feeders = {}
     league_specs = {}
-    for code in leagues.TARGETS:
+    for code in codes:
         _, samples = outcome_train.load_enriched_buckets(leagues.target_config(code), score_feeders=True)
         targets_only = [s for s in samples if not s.get("tier2")]
         league_feeders[code] = [s for s in samples if s.get("tier2") and s["season"] in splits["train_seasons"]]
@@ -86,10 +88,10 @@ def main() -> None:
         )
 
     pooled = {
-        k: [s for code in leagues.TARGETS for s in league_buckets[code][k]]
+        k: [s for code in codes for s in league_buckets[code][k]]
         for k in ("train", "validate", "calibrate", "test")
     }
-    pooled["train"] = pooled["train"] + [f for code in leagues.TARGETS for f in league_feeders[code]]
+    pooled["train"] = pooled["train"] + [f for code in codes for f in league_feeders[code]]
     global_live = outcome_train.build_artifact(GLOBAL_FEATS, pooled, decay=GLOBAL_DECAY)
     global_live["label"] = (
         f"global15_{tag} [{', '.join(GLOBAL_FEATS)}] pooled 5-league logistic, decay={GLOBAL_DECAY}, "
@@ -106,7 +108,7 @@ def main() -> None:
     model_registry.register(global_path, deployed=True, notes="PRD 12.2 refold, live 2026/27 track")
     print(f"wrote {global_path}")
 
-    for code in leagues.TARGETS:
+    for code in codes:
         cfg = leagues.target_config(code)
         spec = league_specs[code]
         buckets = league_buckets[code]

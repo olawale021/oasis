@@ -24,7 +24,7 @@ import db
 import ingest_fixtures
 import leagues
 
-DEFAULT_LEAGUE_IDS = [cfg["league_id"] for cfg in leagues.TARGETS.values()]
+DEFAULT_LEAGUE_IDS = [cfg["league_id"] for cfg in leagues.pooled_targets().values()]
 
 
 def club_ids(conn, league_id: int, season: int) -> list:
