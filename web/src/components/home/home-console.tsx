@@ -5,6 +5,7 @@ import Link from "next/link";
 import { LockedBar, ProbabilityBar, ProbabilityLegend } from "@/components/probability-bar";
 import { UnlockCta } from "@/components/unlock-cta";
 import type { Tier } from "@/lib/viewer";
+import type { LinkStatus } from "@/lib/telegram/store";
 import { LEAGUE_CODES, LEAGUE_NAMES, utcClock, utcDayLabel } from "@/lib/data";
 import type { LiveData } from "@/lib/data";
 import { deriveMatch, sortByKickoff } from "@/lib/derive";
@@ -28,8 +29,9 @@ function utcDayStamp(d: Date): string {
   return d.toISOString().slice(0, 10);
 }
 
-export function HomeConsole({ live, tier }: { live: LiveData; tier: Tier }) {
+export function HomeConsole({ live, tier, telegram = null }: { live: LiveData; tier: Tier; telegram?: LinkStatus | null }) {
   const premium = tier === "premium";
+  const telegramLinked = telegram !== null;
   const [league, setLeague] = useState<LeagueFilter>("ALL");
   const [confirmedOnly, setConfirmedOnly] = useState(false);
   const [highConfOnly, setHighConfOnly] = useState(false);
@@ -586,15 +588,33 @@ export function HomeConsole({ live, tier }: { live: LiveData; tier: Tier }) {
 
         {!isResults && (
         <div className="flex flex-col gap-2 rounded-[10px] border border-[var(--oasis-border)] bg-[var(--oasis-surface)] p-[13px]">
-          <div className="font-mono text-[10px] font-semibold tracking-[0.1em] text-[var(--oasis-text-dim)]">
-            TELEGRAM
+          <div className="flex items-center justify-between font-mono text-[10px] font-semibold tracking-[0.1em] text-[var(--oasis-text-dim)]">
+            <span>TELEGRAM</span>
+            {telegramLinked && (
+              <span className="flex items-center gap-1 text-[var(--oasis-positive)]">
+                <span className="inline-block h-[6px] w-[6px] rounded-full bg-[var(--oasis-positive)]" aria-hidden />
+                CONNECTED
+              </span>
+            )}
           </div>
-          <div className="text-[13px] font-semibold">Daily digest + lineup alerts</div>
+          <div className="text-[13px] font-semibold">
+            {telegram ? (
+              telegram.username ? (
+                <>
+                  Connected as <span className="font-mono">@{telegram.username}</span>
+                </>
+              ) : (
+                "Account connected"
+              )
+            ) : (
+              "Daily digest + lineup alerts"
+            )}
+          </div>
           <div className="font-mono text-[11px] font-medium text-[var(--oasis-text-dim)]">
-            /today · /performance · /alerts
+            {telegramLinked ? "digest · final forecasts · results · /alerts to change" : "/today · /performance · /alerts"}
           </div>
           <Link href="/account" className="rounded-[7px] border border-[var(--oasis-border-strong)] py-2 text-center text-[12px] font-bold hover:border-[var(--oasis-home)]">
-            Connect account
+            {telegramLinked ? "Manage alerts" : "Connect account"}
           </Link>
         </div>
         )}

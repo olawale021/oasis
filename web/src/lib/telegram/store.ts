@@ -7,7 +7,8 @@ import type { LeagueCode } from "@/lib/types";
 /** Where a Telegram link lives: the user's Clerk private metadata (the
  * record: chat id, preferences, 18+ confirmation) plus two small KV keys
  * so inbound commands and outbound dispatch can find users without
- * scanning Clerk: tg:chat:<chat_id> -> userId, and tg:subs -> {userId: chat_id}. */
+ * scanning Clerk: tg:chat:<chat_id> -> userId, and tg:subs ->
+ * {userId: {chat_id, username}} (older entries are a bare chat_id). */
 
 export interface TelegramPrefs {
   leagues: LeagueCode[];
@@ -55,8 +56,20 @@ function readRecord(priv: unknown): TelegramRecord | null {
   return { ...t, prefs: { ...DEFAULT_PREFS, ...(t.prefs ?? {}) } };
 }
 
-async function subsMap(kv: KVLike): Promise<Record<string, number>> {
-  return ((await kv.get(SUBS_KEY, { type: "json" })) as Record<string, number> | null) ?? {};
+interface SubEntry {
+  chat_id: number;
+  username: string | null;
+}
+type SubsMap = Record<string, number | SubEntry>;
+
+async function subsMap(kv: KVLike): Promise<SubsMap> {
+  return ((await kv.get(SUBS_KEY, { type: "json" })) as SubsMap | null) ?? {};
+}
+
+function subEntry(v: number | SubEntry | undefined): SubEntry | null {
+  if (typeof v === "number") return { chat_id: v, username: null };
+  if (v && typeof v.chat_id === "number") return { chat_id: v.chat_id, username: v.username ?? null };
+  return null;
 }
 
 export async function linkChat(kv: KVLike, userId: string, chat_id: number, username: string | null): Promise<TelegramRecord> {
@@ -73,7 +86,7 @@ export async function linkChat(kv: KVLike, userId: string, chat_id: number, user
   await client.users.updateUserMetadata(userId, { privateMetadata: { telegram: record } });
   await kv.put(CHAT_KEY(chat_id), JSON.stringify({ userId }));
   const subs = await subsMap(kv);
-  subs[userId] = chat_id;
+  subs[userId] = { chat_id, username };
   await kv.put(SUBS_KEY, JSON.stringify(subs));
   return record;
 }
@@ -90,6 +103,19 @@ export async function unlinkChat(kv: KVLike, chat_id: number): Promise<boolean> 
   delete subs[hit.userId];
   await kv.put(SUBS_KEY, JSON.stringify(subs));
   return true;
+}
+
+export interface LinkStatus {
+  /** Telegram username at link time, without the @; null when the account has none. */
+  username: string | null;
+}
+
+/** Is this Clerk user linked to a Telegram chat, and as whom? One KV read
+ * of the subscribers map; no Clerk call, so it is cheap enough for the home
+ * page. Null when not linked. */
+export async function linkStatus(kv: KVLike, userId: string): Promise<LinkStatus | null> {
+  const entry = subEntry((await subsMap(kv))[userId]);
+  return entry ? { username: entry.username } : null;
 }
 
 export async function userForChat(kv: KVLike, chat_id: number): Promise<Subscriber | null> {
