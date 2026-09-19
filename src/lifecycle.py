@@ -110,7 +110,7 @@ def lock(conn, window_minutes: int, dry_run: bool = False, stage: str = "initial
 def settle(conn) -> list:
     rows = conn.execute(
         """
-        SELECT lp.fixture_id, lp.p_home, lp.p_draw, lp.p_away, lp.home, lp.away,
+        SELECT lp.fixture_id, lp.stage, lp.p_home, lp.p_draw, lp.p_away, lp.home, lp.away,
                f.home_goals, f.away_goals, f.status_short
         FROM locked_predictions lp
         JOIN fixtures f ON f.fixture_id = lp.fixture_id
@@ -124,23 +124,52 @@ def settle(conn) -> list:
     settled = []
     for r in rows:
         hg, ag = r["home_goals"], r["away_goals"]
-        outcome = 0 if hg > ag else (2 if hg < ag else 1)
-        probs = [r["p_home"] / 100.0, r["p_draw"] / 100.0, r["p_away"] / 100.0]
-        log_loss = -math.log(max(probs[outcome], 1e-15))
-        brier = sum((probs[i] - (1.0 if i == outcome else 0.0)) ** 2 for i in range(3))
-        correct = int(max(range(3), key=lambda i: probs[i]) == outcome)
+        m = score_row(r["p_home"], r["p_draw"], r["p_away"], hg, ag)
+        # One row per (fixture, stage): each stage is scored on ITS OWN
+        # probabilities. Updating by fixture_id alone stamped the initial
+        # lock's verdict onto the final-stage row too (bug, fixed 2026-09-19).
         conn.execute(
             """
             UPDATE locked_predictions
             SET result_home = ?, result_away = ?, outcome = ?, log_loss = ?,
                 brier = ?, correct = ?, settled_at = ?
-            WHERE fixture_id = ? AND settled_at IS NULL
+            WHERE fixture_id = ? AND stage = ? AND settled_at IS NULL
             """,
-            (hg, ag, outcome, round(log_loss, 4), round(brier, 4), correct, now, r["fixture_id"]),
+            (hg, ag, m["outcome"], m["log_loss"], m["brier"], m["correct"], now, r["fixture_id"], r["stage"]),
         )
-        settled.append({"fixture": f"{r['home']} v {r['away']}", "result": f"{hg}-{ag}", "log_loss": round(log_loss, 3), "correct": bool(correct)})
+        settled.append({"fixture": f"{r['home']} v {r['away']}", "stage": r["stage"], "result": f"{hg}-{ag}", "log_loss": m["log_loss"], "correct": bool(m["correct"])})
     conn.commit()
     return settled
+
+
+def score_row(p_home: float, p_draw: float, p_away: float, hg: int, ag: int) -> dict:
+    outcome = 0 if hg > ag else (2 if hg < ag else 1)
+    probs = [p_home / 100.0, p_draw / 100.0, p_away / 100.0]
+    log_loss = -math.log(max(probs[outcome], 1e-15))
+    brier = sum((probs[i] - (1.0 if i == outcome else 0.0)) ** 2 for i in range(3))
+    correct = int(max(range(3), key=lambda i: probs[i]) == outcome)
+    return {"outcome": outcome, "log_loss": round(log_loss, 4), "brier": round(brier, 4), "correct": correct}
+
+
+def resettle(conn) -> dict:
+    """Recompute every settled row's metrics from its own probabilities and
+    recorded result (idempotent). Repairs rows settled before the per-stage
+    fix, where a final-stage row carried the initial lock's numbers."""
+    rows = conn.execute(
+        "SELECT fixture_id, stage, p_home, p_draw, p_away, result_home, result_away, log_loss, brier, correct"
+        " FROM locked_predictions WHERE settled_at IS NOT NULL AND result_home IS NOT NULL"
+    ).fetchall()
+    fixed = 0
+    for r in rows:
+        m = score_row(r["p_home"], r["p_draw"], r["p_away"], r["result_home"], r["result_away"])
+        if (m["log_loss"], m["brier"], m["correct"]) != (r["log_loss"], r["brier"], r["correct"]):
+            conn.execute(
+                "UPDATE locked_predictions SET outcome = ?, log_loss = ?, brier = ?, correct = ? WHERE fixture_id = ? AND stage = ?",
+                (m["outcome"], m["log_loss"], m["brier"], m["correct"], r["fixture_id"], r["stage"]),
+            )
+            fixed += 1
+    conn.commit()
+    return {"checked": len(rows), "repaired": fixed}
 
 
 def status(conn) -> dict:
@@ -175,6 +204,8 @@ def main() -> None:
     p_settle.add_argument("--db-path", type=Path, default=None)
     p_status = sub.add_parser("status", help="Locked/settled counts and live record")
     p_status.add_argument("--db-path", type=Path, default=None)
+    p_resettle = sub.add_parser("resettle", help="Recompute settled metrics per (fixture, stage) from each row's own probabilities")
+    p_resettle.add_argument("--db-path", type=Path, default=None)
     args = parser.parse_args()
 
     conn = db.get_connection(args.db_path)
@@ -196,6 +227,8 @@ def main() -> None:
             mark = "✓" if r["correct"] else "✗"
             print(f"settled: {r['fixture']} {r['result']} {mark} log_loss={r['log_loss']}")
         print(f"{len(rows)} fixture(s) settled")
+    elif args.command == "resettle":
+        print(json.dumps(resettle(conn)))
     elif args.command == "status":
         print(json.dumps(status(conn), indent=2))
 
