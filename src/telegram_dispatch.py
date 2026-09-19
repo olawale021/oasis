@@ -78,7 +78,10 @@ def events_since(conn, state: dict, now: datetime) -> tuple:
 def post(url: str, secret: str, payload: dict) -> dict:
     req = urllib.request.Request(
         url, data=json.dumps(payload).encode(), method="POST",
-        headers={"content-type": "application/json", "authorization": f"Bearer {secret}"},
+        # Cloudflare's bot protection returns 403 to the default "Python-urllib"
+        # user agent before the Worker sees the request (confirmed 2026-09-19).
+        headers={"content-type": "application/json", "authorization": f"Bearer {secret}",
+                 "user-agent": "oasis-matchday/1 (+https://realscores.app)"},
     )
     with urllib.request.urlopen(req, timeout=60) as res:
         return json.loads(res.read().decode())
